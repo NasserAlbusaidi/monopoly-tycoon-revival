@@ -121,8 +121,9 @@ HKCU\Software\Classes\WOW6432Node\CLSID\{6B6D0800-9ADA-11D0-A520-00A0D10129C0}
 
 Two preflight checks gate `--music`: the reader must be registered for
 32-bit programs (Windows N editions need the Media Feature Pack), and the
-shim must be bundled (it is package data; `tools\wmsource-shim\build.ps1`
-rebuilds it with the MSVC Build Tools). `fix --music` warns if `mc.exe` has
+shim must be bundled. Wheels from PyPI and the GitHub releases carry it; a
+git checkout does not — run `tools\wmsource-shim\build.ps1` (MSVC Build
+Tools, x86) or drop the DLL from a release into `src\mtrevival\bin\`. `fix --music` warns if `mc.exe` has
 the "run as administrator" compatibility flag: an elevated process ignores
 per-user COM classes, would not see the shim, and would crash with `music 0`.
 
