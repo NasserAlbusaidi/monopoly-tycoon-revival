@@ -24,17 +24,22 @@ Python ≥3.12, stdlib only, no runtime deps. A venv exists at `.venv/`.
 .venv\Scripts\python -m mtrevival adapters      # list adapters + 640x480 fit
 .venv\Scripts\python -m mtrevival check         # dry run against real install
 .venv\Scripts\python -m mtrevival fix [--game-dir DIR]   # writes config.cfg
-.venv\Scripts\python -m mtrevival fix --resolution 1920x1080 [--windowed]
+.venv\Scripts\python -m mtrevival fix --resolution 1920x1080 [--windowed] [--music]
+pwsh tools\wmsource-shim\build.ps1               # builds src\mtrevival\bin\wmsource-shim.dll (MSVC x86)
 ```
 
 `pyproject.toml` sets `pythonpath = ["src", "tests"]`, so tests import
 `mtrevival` directly and `test_fixpack.py` imports the `REAL` fixture from
-`test_d3denum.py`. No lint/format tool is configured.
+`test_d3denum.py`. No lint/format tool is configured. `test_music.py` writes
+real registry keys under `HKCU\Software\mtrevival-test\<uuid>` and deletes
+them; everything else that touches the registry or the DLL is monkeypatched.
 
-`tools/probe-wma-source.cpp` is a standalone MSVC diagnostic (DirectShow filter
-probe). `tools/monitor-run.ps1` launches an exe and logs every child process
-command line and every dialog's text (run it elevated to see elevated windows).
-Neither is part of the package or the test suite.
+`tools/wmsource-shim/` is the C++ COM shim that restores music (see below);
+its built DLL is package data and is committed. `tools/probe-wma-source.cpp`
+is the standalone DirectShow probe used to diagnose it. `tools/monitor-run.ps1`
+launches an exe and logs every child process command line and every dialog's
+text (run it elevated to see elevated windows). None of these are in the test
+suite.
 
 ## Architecture
 
@@ -54,6 +59,13 @@ Neither is part of the package or the test suite.
 - `fixpack.py` — orchestration: `find_install` → `build_plan` (pure, returns a
   `Plan`) → `describe` / `apply` (side effects: timestamped `.bak`, write).
   `find_install` never falls back to a search when `--game-dir` is explicit.
+  With `--music`, `apply` installs the shim (copy next to `mc.exe`, per-user
+  COM registration) *before* writing `config.cfg`, so a failure leaves
+  `music 1` in place.
+- `music.py` — the soundtrack fix: `winreg` access to the 32-bit view of
+  `HKCU\Software\Classes\CLSID\{6B6D0800-…}` (the game is 32-bit), the WM ASF
+  Reader preflight, and the run-as-administrator check. Never registers under
+  HKLM.
 - `__main__.py` — argparse CLI over `fixpack`. Exit codes: 0 ok, 1 plan not ok /
   apply failed, 2 install not found.
 
@@ -64,16 +76,30 @@ is exercised against the actual crash scenario.
 ## Domain facts that shape the code
 
 - Both startup crashes are unchecked-null bugs in `mc.exe`; the fix is
-  configuration, not patching. `SysSetup device N` must be chosen **by
-  capability** (adapter has `640 X 480`), never hardcoded — a portrait primary
-  display is adapter 0 and offers only `480 X 640`. `SysSetup music 1` skips the
-  WMA DirectShow path whose source filter (`dxmasf.dll`) no longer ships.
-- Observed to take effect: `device`, `bitdepth 32`, `music`, `width`, `height`
-  (1920x1080 fullscreen), and on 1.2 `Window 1` (1280x720 windowed). Observed
-  ignored: 1.0's `windowed 1`, `bitdepth 16`. Treat any other `SysSetup` key as
-  unproven until watched working. `KEY_ORDER` in `gameconfig.py` mirrors the
-  verified files — `Window` goes after `music`. Full evidence, disassembly,
-  and dump analysis: `docs/phase-0-findings.md`, `docs/patch-1.2.md`.
+  configuration plus a COM shim, never exe patching. `SysSetup device N` must
+  be chosen **by capability** (adapter has `640 X 480`), never hardcoded — a
+  portrait primary display is adapter 0 and offers only `480 X 640`.
+  `SysSetup music 1` means music **off** (the game stores `enabled = value == 0`)
+  and skips the WMA DirectShow path; `music 0` is only safe with the shim.
+- Music: the game does `CoCreateInstance({6B6D0800-…}, IID_IBaseFilter)` — the
+  2001 Windows Media Source Filter, unregistered on Win11 — then
+  `FindPin(L"Stream 1")`, and re-`Load`s the same filter for every track. The
+  modern WM ASF Reader names its pin `Raw Audio 0` and **refuses a second
+  `Load` on one instance**, so a CLSID/pin-name byte patch of the exe gives one
+  track only. `wmsource-shim.dll` aggregates a fresh reader per `Load` under
+  the legacy CLSID. Per-user registration is invisible to an elevated process;
+  `fix --music` warns if `mc.exe` carries the RUNASADMIN compat flag. Full
+  evidence: `docs/music.md`.
+- Patch 1.2 creates an empty `MTS.txt` at launch and deletes it on clean
+  exit. Killing the process leaves it, and the next launch offers Safe Mode,
+  which overwrites `config.cfg`. Delete `MTS.txt` after any forced stop.
+- Observed to take effect: `device`, `bitdepth 32`, `music` (both values),
+  `width`, `height` (1920x1080 fullscreen), and on 1.2 `Window 1` (1280x720
+  windowed). Observed ignored: 1.0's `windowed 1`, `bitdepth 16`. Treat any
+  other `SysSetup` key as unproven until watched working. `KEY_ORDER` in
+  `gameconfig.py` mirrors the verified files — `Window` goes after `music`.
+  Full evidence, disassembly, and dump analysis: `docs/phase-0-findings.md`,
+  `docs/patch-1.2.md`, `docs/music.md`.
 - `fixpack.KNOWN_BUILDS` maps `mc.exe` MD5 → game version; `--windowed` warns
   (does not refuse) when the build is not 1.2.
 - Program Files is not writable for a standard user, so the game silently fails

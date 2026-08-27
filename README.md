@@ -6,7 +6,8 @@ Windows 10 and 11.
 The game installs fine on modern Windows and then crashes on startup — usually
 right after the studio logo, sometimes before anything appears. There are two
 separate causes, both fixable in about a minute. No patched executable, no
-wrapper DLL, no compatibility mode required.
+compatibility mode. The soundtrack needs one small COM shim registered for
+your user account; everything else is a text file.
 
 **This repository contains no game content.** You need your own copy of the game.
 
@@ -45,6 +46,9 @@ SysSetup music 1
 if your primary display is rotated to portrait, or does not offer a 640×480
 mode. The tool below works this out for you.
 
+`music 1` means music **off**. That is the safe setting without the shim
+described under [Music](#music); the game runs, silently.
+
 That is the whole fix. Launch `mc.exe`.
 
 ---
@@ -61,6 +65,7 @@ py -m mtrevival fix          # write config.cfg, backing up any existing one
 
 py -m mtrevival fix --resolution 1920x1080             # any mode the adapter lists
 py -m mtrevival fix --resolution 1280x720 --windowed   # windowed needs patch 1.2
+py -m mtrevival fix --music                            # restore the soundtrack
 ```
 
 Example on a machine with a portrait primary display:
@@ -73,6 +78,19 @@ source: D3DEnum.txt
 
 `fix` never overwrites an existing `config.cfg` without copying it to a
 timestamped `.bak` first.
+
+### Music
+
+The game plays its WMA soundtrack through a DirectShow filter that Windows
+dropped years ago. `fix --music` copies `wmsource-shim.dll` (built from
+[`tools/wmsource-shim`](tools/wmsource-shim), source included) next to
+`mc.exe`, registers it **for your user only** — no elevation, nothing outside
+your profile — and writes `music 0`. The shim hands the game Windows' own
+WM ASF Reader with the two adaptations the game needs. Details, evidence and
+removal in [`docs/music.md`](docs/music.md).
+
+Do not run the game "as administrator" with music on: an elevated process
+cannot see per-user COM registrations. `fix --music` warns if that flag is set.
 
 ---
 
@@ -130,9 +148,13 @@ play its WMA soundtrack, but the Windows Media DirectShow source filter
 the Windows Media source does not. The interface comes back null and is used
 anyway.
 
-**Fix:** `SysSetup music 1` suppresses that path. The game runs without its
-music. Restoring music is tracked as future work — the 2001 Windows Media
-redistributable on the CD is not a safe answer on a modern system.
+**Fix:** `SysSetup music 1` suppresses that path, and the game runs without
+its music. `fix --music` restores it: the filter the game asks for,
+`{6B6D0800-…}`, is answered by a shim that wraps Windows' WM ASF Reader,
+creating a fresh reader per track (the reader refuses a second `Load`) and
+mapping the game's `FindPin(L"Stream 1")` onto the reader's `Raw Audio 0`.
+The 2001 Windows Media redistributable on the CD is not touched. See
+[`docs/music.md`](docs/music.md).
 
 ---
 
@@ -149,6 +171,12 @@ redistributable on the CD is not a safe answer on a modern system.
   adapter enumerates; 1920×1080 exclusive fullscreen and 1280×720 windowed
   (`SysSetup Window 1`, patch 1.2 only) were verified running with a sane UI.
   The 1.0 key `windowed` is ignored; 1.2 renamed it.
+- Music was verified on patch 1.2 (intro track by ear, all ten tracks and
+  repeated track changes in a DirectShow harness). It needs Windows Media,
+  which N editions get from the Media Feature Pack.
+- Patch 1.2 drops an empty `MTS.txt` in the game folder while it runs and
+  removes it on exit. If the game is killed, delete that file, or the next
+  launch offers Safe Mode and overwrites `config.cfg`.
 - GameSpy multiplayer is dead and out of scope.
 
 ## Modding

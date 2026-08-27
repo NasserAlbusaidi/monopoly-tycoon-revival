@@ -2,11 +2,30 @@ import hashlib
 
 import pytest
 
-from mtrevival import fixpack
+from mtrevival import fixpack, music
 
 from test_d3denum import REAL
 
 FAKE_EXE = b"MZ not really"
+FAKE_SHIM = b"MZ shim"
+
+
+@pytest.fixture
+def music_env(tmp_path, monkeypatch):
+    """Isolate every machine fact music.py reads: no real registry, no real DLL.
+
+    Returns a dict the tests mutate to simulate the machine, plus the list
+    of registrations that apply() performed.
+    """
+    shim = tmp_path / "package-bin" / music.SHIM_NAME
+    shim.parent.mkdir()
+    shim.write_bytes(FAKE_SHIM)
+    env = {"shim": shim, "reader": True, "admin": False, "registered": []}
+    monkeypatch.setattr(music, "bundled_shim", lambda: env["shim"])
+    monkeypatch.setattr(music, "reader_available", lambda: env["reader"])
+    monkeypatch.setattr(music, "run_as_admin_flagged", lambda exe: env["admin"])
+    monkeypatch.setattr(music, "register", lambda dll, classes=None: env["registered"].append(dll))
+    return env
 
 
 @pytest.fixture
@@ -126,6 +145,81 @@ def test_fullscreen_plans_never_warn(fixture, request):
     plan = fixpack.build_plan(request.getfixturevalue(fixture), 800, 600)
     assert plan.warnings == []
     assert "WARNING" not in fixpack.describe(plan)
+
+
+def test_plan_without_music_keeps_music_1_and_touches_no_registry(fake_game, music_env):
+    plan = fixpack.build_plan(fake_game)
+    assert not plan.music
+    assert "SysSetup music 1\r\n" in plan.rendered
+    assert plan.music_problems == []
+    fixpack.apply(plan)
+    assert music_env["registered"] == []
+    assert not (fake_game / music.SHIM_NAME).exists()
+    assert "add --music" in fixpack.describe(plan)
+
+
+def test_plan_with_music_writes_music_0_and_names_the_shim(fake_game, music_env):
+    plan = fixpack.build_plan(fake_game, with_music=True)
+    assert plan.music and plan.ok
+    assert "SysSetup music 0\r\n" in plan.rendered
+    assert plan.shim_source == music_env["shim"]
+    assert plan.shim_target == fake_game / music.SHIM_NAME
+    text = fixpack.describe(plan)
+    assert "Music          : restore" in text
+    assert str(plan.shim_target) in text
+
+
+def test_apply_with_music_installs_the_shim_before_writing_config(fake_game, music_env):
+    plan = fixpack.build_plan(fake_game, with_music=True)
+    fixpack.apply(plan)
+    assert (fake_game / music.SHIM_NAME).read_bytes() == FAKE_SHIM
+    assert music_env["registered"] == [fake_game / music.SHIM_NAME]
+    assert b"SysSetup music 0\r\n" in (fake_game / "config.cfg").read_bytes()
+
+
+def test_apply_with_music_refreshes_a_stale_shim_copy(fake_game, music_env):
+    (fake_game / music.SHIM_NAME).write_bytes(b"MZ old")
+    fixpack.apply(fixpack.build_plan(fake_game, with_music=True))
+    assert (fake_game / music.SHIM_NAME).read_bytes() == FAKE_SHIM
+
+
+def test_music_refused_without_a_bundled_shim(fake_game, music_env):
+    music_env["shim"] = None
+    plan = fixpack.build_plan(fake_game, with_music=True)
+    assert not plan.ok
+    assert any("not bundled" in p for p in plan.music_problems)
+    assert "PROBLEM" in fixpack.describe(plan)
+    with pytest.raises(fixpack.FixError, match="not bundled"):
+        fixpack.apply(plan)
+    assert not (fake_game / "config.cfg").exists()
+    assert music_env["registered"] == []
+
+
+def test_music_refused_without_the_asf_reader(fake_game, music_env):
+    music_env["reader"] = False
+    plan = fixpack.build_plan(fake_game, with_music=True)
+    assert not plan.ok
+    assert any("Media Feature Pack" in p for p in plan.music_problems)
+    with pytest.raises(fixpack.FixError, match="WM ASF Reader"):
+        fixpack.apply(plan)
+    assert not (fake_game / "config.cfg").exists()
+
+
+def test_music_warns_when_the_game_runs_elevated(fake_game, music_env):
+    music_env["admin"] = True
+    plan = fixpack.build_plan(fake_game, with_music=True)
+    assert plan.ok
+    assert any("run as administrator" in w for w in plan.warnings)
+    assert "WARNING" in fixpack.describe(plan)
+    assert fixpack.build_plan(fake_game).warnings == []
+
+
+def test_music_problems_leave_config_untouched_when_it_exists(fake_game, music_env):
+    (fake_game / "config.cfg").write_bytes(b"SysSetup music 1\r\n")
+    music_env["reader"] = False
+    with pytest.raises(fixpack.FixError):
+        fixpack.apply(fixpack.build_plan(fake_game, with_music=True))
+    assert (fake_game / "config.cfg").read_bytes() == b"SysSetup music 1\r\n"
 
 
 def test_apply_creates_config(fake_game):

@@ -72,6 +72,45 @@ def test_adapters_does_not_take_windowed(fake_game, capsys):
     assert "unrecognized arguments: --windowed" in capsys.readouterr().err
 
 
+def test_check_without_music_says_how_to_get_it(fake_game, capsys):
+    assert cli.main(["check", "--game-dir", str(fake_game)]) == 0
+    out = capsys.readouterr().out
+    assert "Music          : off (music 1); add --music" in out
+    assert "SysSetup music 1" in out
+
+
+def test_fix_with_music_installs_and_registers(fake_game, tmp_path, monkeypatch, capsys):
+    from mtrevival import music
+    shim = tmp_path / music.SHIM_NAME
+    shim.write_bytes(b"MZ shim")
+    registered = []
+    monkeypatch.setattr(music, "bundled_shim", lambda: shim)
+    monkeypatch.setattr(music, "reader_available", lambda: True)
+    monkeypatch.setattr(music, "run_as_admin_flagged", lambda exe: False)
+    monkeypatch.setattr(music, "register", lambda dll, classes=None: registered.append(dll))
+    rc = cli.main(["fix", "--game-dir", str(fake_game), "--music"])
+    out = capsys.readouterr().out
+    assert rc == 0, out
+    assert registered == [fake_game / music.SHIM_NAME]
+    assert "registered it for this user" in out
+    assert b"SysSetup music 0\r\n" in (fake_game / "config.cfg").read_bytes()
+
+
+def test_check_with_music_exits_1_when_it_cannot_be_applied(fake_game, monkeypatch, capsys):
+    from mtrevival import music
+    monkeypatch.setattr(music, "bundled_shim", lambda: None)
+    monkeypatch.setattr(music, "reader_available", lambda: True)
+    monkeypatch.setattr(music, "run_as_admin_flagged", lambda exe: False)
+    assert cli.main(["check", "--game-dir", str(fake_game), "--music"]) == 1
+    assert "PROBLEM" in capsys.readouterr().out
+
+
+def test_adapters_does_not_take_music(fake_game, capsys):
+    with pytest.raises(SystemExit):
+        cli.main(["adapters", "--game-dir", str(fake_game), "--music"])
+    assert "unrecognized arguments: --music" in capsys.readouterr().err
+
+
 def test_missing_install_exits_2(tmp_path, capsys):
     assert cli.main(["check", "--game-dir", str(tmp_path)]) == 2
     assert "Could not find mc.exe" in capsys.readouterr().err

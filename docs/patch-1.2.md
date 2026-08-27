@@ -88,6 +88,10 @@ Other 1.2 additions, from `patchreadme.wri` and the exe strings:
 
 - **Safe Mode.** Triggered by a file named `MTS.txt` in the game folder, or
   offered after a crash. Overwrites `config.cfg` with lowest settings.
+  Observed: the game itself creates an empty `MTS.txt` the moment it starts
+  and removes it on a clean exit. A process that is killed leaves it behind,
+  and the next launch will then offer Safe Mode. Delete the file before
+  launching again if you do not want that.
 - **Crash handler.** Writes `__crash.sav` and prompts for Safe Mode on the next
   launch.
 - Command-line switches dropped from 1.0: `NOMOVIE`, `WINDOW` (now `SysSetup`
