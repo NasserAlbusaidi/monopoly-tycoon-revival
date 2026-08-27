@@ -19,11 +19,12 @@ Python ≥3.12, stdlib only, no runtime deps. A venv exists at `.venv/`.
 
 ```powershell
 .venv\Scripts\python -m pip install -e .        # editable install
-.venv\Scripts\python -m pytest -q               # all tests (30, <1 s)
+.venv\Scripts\python -m pytest -q               # all tests (~60, <1 s)
 .venv\Scripts\python -m pytest tests/test_fixpack.py -k landscape   # one test
 .venv\Scripts\python -m mtrevival adapters      # list adapters + 640x480 fit
 .venv\Scripts\python -m mtrevival check         # dry run against real install
 .venv\Scripts\python -m mtrevival fix [--game-dir DIR]   # writes config.cfg
+.venv\Scripts\python -m mtrevival fix --resolution 1920x1080 [--windowed]
 ```
 
 `pyproject.toml` sets `pythonpath = ["src", "tests"]`, so tests import
@@ -67,10 +68,14 @@ is exercised against the actual crash scenario.
   capability** (adapter has `640 X 480`), never hardcoded — a portrait primary
   display is adapter 0 and offers only `480 X 640`. `SysSetup music 1` skips the
   WMA DirectShow path whose source filter (`dxmasf.dll`) no longer ships.
-- Only `device`, `bitdepth 32`, `music` are *observed* to take effect;
-  `windowed 1` and `bitdepth 16` were observed being ignored. Treat any other
-  `SysSetup` key as unproven until watched working. Full evidence, disassembly,
-  and dump analysis: `docs/phase-0-findings.md`.
+- Observed to take effect: `device`, `bitdepth 32`, `music`, `width`, `height`
+  (1920x1080 fullscreen), and on 1.2 `Window 1` (1280x720 windowed). Observed
+  ignored: 1.0's `windowed 1`, `bitdepth 16`. Treat any other `SysSetup` key as
+  unproven until watched working. `KEY_ORDER` in `gameconfig.py` mirrors the
+  verified files — `Window` goes after `music`. Full evidence, disassembly,
+  and dump analysis: `docs/phase-0-findings.md`, `docs/patch-1.2.md`.
+- `fixpack.KNOWN_BUILDS` maps `mc.exe` MD5 → game version; `--windowed` warns
+  (does not refuse) when the build is not 1.2.
 - Program Files is not writable for a standard user, so the game silently fails
   to persist config/profiles; `fixpack` detects this and prints the `icacls`
   command rather than elevating itself.

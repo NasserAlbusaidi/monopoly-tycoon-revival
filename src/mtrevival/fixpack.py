@@ -15,11 +15,15 @@ null.
 
 A third problem must be solved before either fix can persist: the game cannot
 write ``config.cfg`` inside Program Files under a standard user account.
+
+The same mechanism sets the resolution. Any mode the chosen adapter enumerates
+works, fullscreen or (on patch 1.2) windowed; 1920x1080 and 1280x720 windowed
+were verified on one machine.
 """
 
 from __future__ import annotations
 
-import os
+import hashlib
 import shutil
 from dataclasses import dataclass
 from datetime import datetime
@@ -28,9 +32,17 @@ from pathlib import Path
 from . import d3denum, gameconfig
 
 DEFAULT_INSTALL = Path(r"C:\Program Files (x86)\Infogrames\Monopoly Tycoon")
-TARGET_WIDTH = 640
-TARGET_HEIGHT = 480
+DEFAULT_WIDTH = gameconfig.DEFAULT_WIDTH
+DEFAULT_HEIGHT = gameconfig.DEFAULT_HEIGHT
 TARGET_BPP = 32
+
+# MD5 of mc.exe for the builds this tool has been run against. Patch 1.2
+# renamed the windowed-mode key, so the version decides which keys are honoured.
+KNOWN_BUILDS = {
+    "fd34022887dc347b664b689fedeb9a37": "1.0",
+    "5965dbb1a4be4f58fa4452df78786e63": "1.2",
+}
+WINDOWED_NEEDS = "1.2"
 
 
 class FixError(Exception):
@@ -42,10 +54,14 @@ class Plan:
     """What the fix would do, before it does it."""
 
     game_dir: Path
+    game_version: str
     writable: bool
     adapter: int | None
     adapter_source: str
     adapter_description: str
+    width: int
+    height: int
+    windowed: bool
     config_path: Path
     config_exists: bool
     rendered: str
@@ -53,6 +69,25 @@ class Plan:
     @property
     def ok(self) -> bool:
         return self.writable and self.adapter is not None
+
+    @property
+    def warnings(self) -> list[str]:
+        """Things the user should know that do not stop the fix.
+
+        Only 1.0 was observed ignoring the Window key. An unrecognised build
+        gets told exactly that, not a prediction.
+        """
+        out = []
+        if self.windowed and self.game_version == "unknown":
+            out.append("Windowed mode is only verified on patch %s, and this "
+                       "mc.exe is not a build this tool recognises. The Window "
+                       "key is written; whether the game honours it is unproven."
+                       % WINDOWED_NEEDS)
+        elif self.windowed and self.game_version != WINDOWED_NEEDS:
+            out.append("Windowed mode needs patch %s; game version here is %s, "
+                       "which ignores the Window key and runs fullscreen."
+                       % (WINDOWED_NEEDS, self.game_version))
+        return out
 
 
 def find_install(explicit: Path | None = None) -> Path:
@@ -74,6 +109,12 @@ def find_install(explicit: Path | None = None) -> Path:
             return path
     raise FixError(
         "Could not find mc.exe. Pass the install directory with --game-dir.")
+
+
+def game_version(game_dir: Path) -> str:
+    """'1.0', '1.2', or 'unknown', from the hash of mc.exe."""
+    digest = hashlib.md5((game_dir / "mc.exe").read_bytes()).hexdigest()
+    return KNOWN_BUILDS.get(digest, "unknown")
 
 
 def is_writable(directory: Path) -> bool:
@@ -103,13 +144,14 @@ def read_adapters(game_dir: Path) -> tuple[list[d3denum.Adapter], str]:
     return displays.enumerate_adapters(), "Windows display enumeration"
 
 
-def build_plan(game_dir: Path) -> Plan:
+def build_plan(game_dir: Path, width: int = DEFAULT_WIDTH,
+               height: int = DEFAULT_HEIGHT, windowed: bool = False) -> Plan:
     """Work out what to do without changing anything."""
     adapters, source = read_adapters(game_dir)
-    index = d3denum.choose_adapter(adapters, TARGET_WIDTH, TARGET_HEIGHT, TARGET_BPP)
+    index = d3denum.choose_adapter(adapters, width, height, TARGET_BPP)
     if index is None:
         # Retry ignoring colour depth: some sources record modes without bpp.
-        index = d3denum.choose_adapter(adapters, TARGET_WIDTH, TARGET_HEIGHT)
+        index = d3denum.choose_adapter(adapters, width, height)
 
     description = ""
     for adapter in adapters:
@@ -118,13 +160,18 @@ def build_plan(game_dir: Path) -> Plan:
             break
 
     config_path = game_dir / "config.cfg"
-    config = gameconfig.default_config(index if index is not None else 0)
+    config = gameconfig.default_config(index if index is not None else 0,
+                                       width, height, windowed)
     return Plan(
         game_dir=game_dir,
+        game_version=game_version(game_dir),
         writable=is_writable(game_dir),
         adapter=index,
         adapter_source=source,
         adapter_description=description,
+        width=width,
+        height=height,
+        windowed=windowed,
         config_path=config_path,
         config_exists=config_path.is_file(),
         rendered=config.render(),
@@ -141,9 +188,10 @@ def apply(plan: Plan) -> Path | None:
     if plan.adapter is None:
         raise FixError(
             "No display adapter offers %dx%d. Every adapter reported only other "
-            "modes — a rotated display can do this. Rotate a display to "
-            "landscape, or attach one that supports 640x480."
-            % (TARGET_WIDTH, TARGET_HEIGHT))
+            "modes — a rotated display can do this. Pick a resolution the "
+            "adapter lists (see `adapters`), rotate a display to landscape, or "
+            "attach one that supports the mode."
+            % (plan.width, plan.height))
 
     backup = None
     if plan.config_exists:
@@ -159,12 +207,14 @@ def describe(plan: Plan) -> str:
     """A human-readable summary of the plan."""
     lines = [
         "Game directory : %s" % plan.game_dir,
+        "Game version   : %s" % plan.game_version,
         "Writable       : %s" % ("yes" if plan.writable else "NO"),
+        "Resolution     : %dx%d %s" % (plan.width, plan.height,
+                                       "windowed" if plan.windowed else "fullscreen"),
         "Adapter source : %s" % plan.adapter_source,
     ]
     if plan.adapter is None:
-        lines.append("Adapter        : none supports %dx%d"
-                     % (TARGET_WIDTH, TARGET_HEIGHT))
+        lines.append("Adapter        : none supports %dx%d" % (plan.width, plan.height))
     else:
         lines.append("Adapter        : %d%s"
                      % (plan.adapter,
@@ -172,6 +222,8 @@ def describe(plan: Plan) -> str:
                         if plan.adapter_description else ""))
     lines.append("config.cfg     : %s"
                  % ("exists, will be backed up" if plan.config_exists else "new"))
+    for warning in plan.warnings:
+        lines.append("WARNING        : %s" % warning)
     lines.append("")
     lines.append("config.cfg to write:")
     lines += ["    " + line for line in plan.rendered.replace("\r\n", "\n").rstrip().split("\n")]

@@ -10,21 +10,29 @@ Verified by reading the game's process memory after it parsed a file written by
 hand: the exact bytes appeared on the heap, and ``device`` changed which adapter
 ``CreateDevice`` targeted.
 
-Not every key is honoured on every code path. ``device``, ``bitdepth 32`` and
-``music`` were observed taking effect; ``windowed 1`` and ``bitdepth 16`` were
-observed being ignored. Treat any key as unproven until you watch it work.
+Not every key is honoured on every code path. ``device``, ``bitdepth 32``,
+``music``, ``width``, ``height`` and (on patch 1.2) ``Window`` were observed
+taking effect; the 1.0 key ``windowed`` and ``bitdepth 16`` were observed being
+ignored. Treat any other key as unproven until you watch it work.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-# Key spellings exactly as the game's own format strings write them.
+# Key spellings exactly as the game's own format strings write them. The 1.0
+# keys come first in the order 1.0 writes them; the patch 1.2 keys follow, in
+# the position verified running (``Window`` after ``music``). 1.0 ignores keys
+# it does not know.
 KEY_ORDER = ["api", "device", "width", "height", "bitdepth", "texbitdepth",
-             "windowed", "Texdetail", "sound", "music", "shware", "avail"]
+             "windowed", "Texdetail", "sound", "music", "shware", "avail",
+             "Window", "Fog", "Halos", "Multitexture", "No3d", "NoMovie"]
 
 LINE_ENDING = "\r\n"
 COMMAND = "SysSetup"
+
+DEFAULT_WIDTH = 640
+DEFAULT_HEIGHT = 480
 
 
 @dataclass
@@ -60,20 +68,26 @@ def parse(text: str) -> Config:
     return Config(values)
 
 
-def default_config(device: int) -> Config:
+def default_config(device: int, width: int = DEFAULT_WIDTH,
+                   height: int = DEFAULT_HEIGHT, windowed: bool = False) -> Config:
     """The configuration verified to run the game on Windows 11.
 
     ``music 1`` suppresses the WMA playback path, which crashes because the
     Windows Media DirectShow source filter no longer ships with Windows.
     ``bitdepth 32`` matches the format the game actually selects; the 16-bit
     path asks for D3DFMT_R5G6B5, which modern drivers do not offer fullscreen.
+    ``Window 1`` is only written when asked for: it is a patch 1.2 key, and a
+    stock config should stay as close to what the game itself writes as it can.
     """
-    return Config({
+    values = {
         "api": "D3D",
         "device": str(device),
-        "width": "640",
-        "height": "480",
+        "width": str(width),
+        "height": str(height),
         "bitdepth": "32",
         "texbitdepth": "16",
         "music": "1",
-    })
+    }
+    if windowed:
+        values["Window"] = "1"
+    return Config(values)

@@ -60,7 +60,29 @@ Window Fog Halos Multitexture No3d NoMovie          <- new in 1.2
 ```
 
 **`windowed` is renamed `Window`.** The 1.0 key `windowed` was observed being
-ignored; whether `Window 1` works in 1.2 is untested.
+ignored. On 1.2, `Window 1` was verified: the game ran in a desktop window at
+640×480 and at 1280×720. `width`/`height` were verified too: 1920×1080
+exclusive fullscreen on adapter 1 ran with a correctly laid-out UI. In every
+case the game left `config.cfg` untouched, so what you write is what runs.
+
+Three files ran on 1.2, byte for byte (`tests/test_gameconfig.py` pins them):
+
+```
+640x480 fullscreen        1920x1080 fullscreen      1280x720 windowed
+SysSetup api D3D          SysSetup api D3D          SysSetup api D3D
+SysSetup device 1         SysSetup device 1         SysSetup device 1
+SysSetup width 640        SysSetup width 1920       SysSetup width 1280
+SysSetup height 480       SysSetup height 1080      SysSetup height 720
+SysSetup bitdepth 32      SysSetup bitdepth 32      SysSetup bitdepth 32
+SysSetup texbitdepth 16   SysSetup texbitdepth 16   SysSetup texbitdepth 16
+SysSetup music 1          SysSetup music 1          SysSetup music 1
+                          SysSetup Window 0         SysSetup Window 1
+```
+
+The fixpack writes the middle shape *without* `Window 0` — omitting the key is
+verified fullscreen by the first file, the resolution by the second. The exact
+seven-line 1080p file was not itself run. The 1080p file with `Window 0` is
+what the dev machine keeps.
 
 Other 1.2 additions, from `patchreadme.wri` and the exe strings:
 

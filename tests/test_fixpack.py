@@ -1,16 +1,36 @@
+import hashlib
+
 import pytest
 
 from mtrevival import fixpack
 
 from test_d3denum import REAL
 
+FAKE_EXE = b"MZ not really"
+
 
 @pytest.fixture
 def fake_game(tmp_path):
     """A stand-in install directory with mc.exe and the real D3DEnum.txt."""
-    (tmp_path / "mc.exe").write_bytes(b"MZ not really")
+    (tmp_path / "mc.exe").write_bytes(FAKE_EXE)
     (tmp_path / "D3DEnum.txt").write_text(REAL)
     return tmp_path
+
+
+@pytest.fixture
+def fake_game_1_2(fake_game, monkeypatch):
+    """The same install, with mc.exe registered as the patch 1.2 build."""
+    digest = hashlib.md5(FAKE_EXE).hexdigest()
+    monkeypatch.setitem(fixpack.KNOWN_BUILDS, digest, "1.2")
+    return fake_game
+
+
+@pytest.fixture
+def fake_game_1_0(fake_game, monkeypatch):
+    """The same install, with mc.exe registered as the unpatched 1.0 build."""
+    digest = hashlib.md5(FAKE_EXE).hexdigest()
+    monkeypatch.setitem(fixpack.KNOWN_BUILDS, digest, "1.0")
+    return fake_game
 
 
 def test_find_install_accepts_explicit_dir(fake_game):
@@ -20,6 +40,18 @@ def test_find_install_accepts_explicit_dir(fake_game):
 def test_find_install_rejects_dir_without_mc_exe(tmp_path):
     with pytest.raises(fixpack.FixError, match="Could not find mc.exe"):
         fixpack.find_install(tmp_path)
+
+
+def test_game_version_is_unknown_for_an_unrecognised_exe(fake_game):
+    assert fixpack.game_version(fake_game) == "unknown"
+
+
+def test_game_version_recognises_a_registered_build(fake_game_1_2):
+    assert fixpack.game_version(fake_game_1_2) == "1.2"
+
+
+def test_known_builds_carry_both_shipped_versions():
+    assert set(fixpack.KNOWN_BUILDS.values()) == {"1.0", "1.2"}
 
 
 def test_plan_picks_the_landscape_adapter(fake_game):
@@ -33,6 +65,67 @@ def test_plan_writes_a_config_carrying_both_fixes(fake_game):
     plan = fixpack.build_plan(fake_game)
     assert "SysSetup device 1\r\n" in plan.rendered
     assert "SysSetup music 1\r\n" in plan.rendered
+
+
+def test_plan_defaults_to_640x480_fullscreen(fake_game):
+    plan = fixpack.build_plan(fake_game)
+    assert (plan.width, plan.height, plan.windowed) == (640, 480, False)
+    assert "SysSetup width 640\r\n" in plan.rendered
+    assert "SysSetup height 480\r\n" in plan.rendered
+    assert "Window" not in plan.rendered
+
+
+def test_plan_honours_a_requested_resolution(fake_game):
+    plan = fixpack.build_plan(fake_game, 800, 600)
+    assert plan.adapter == 1
+    assert "SysSetup width 800\r\n" in plan.rendered
+    assert "SysSetup height 600\r\n" in plan.rendered
+
+
+def test_plan_refuses_a_resolution_no_adapter_lists(fake_game):
+    """The fixture's adapter 1 tops out at 1024x768."""
+    plan = fixpack.build_plan(fake_game, 1920, 1080)
+    assert plan.adapter is None
+    assert not plan.ok
+    with pytest.raises(fixpack.FixError, match="No display adapter offers 1920x1080"):
+        fixpack.apply(plan)
+
+
+def test_plan_windowed_writes_the_window_key(fake_game_1_2):
+    plan = fixpack.build_plan(fake_game_1_2, 1024, 768, windowed=True)
+    assert plan.windowed
+    assert plan.rendered.endswith("SysSetup music 1\r\nSysSetup Window 1\r\n")
+    assert plan.warnings == []
+
+
+def test_plan_windowed_on_1_0_warns_but_proceeds(fake_game_1_0):
+    """1.0 was observed ignoring the key, so the warning may say so."""
+    plan = fixpack.build_plan(fake_game_1_0, windowed=True)
+    assert plan.game_version == "1.0"
+    assert plan.ok
+    assert "SysSetup Window 1\r\n" in plan.rendered
+    assert len(plan.warnings) == 1
+    assert "game version here is 1.0" in plan.warnings[0]
+    assert "ignores the Window key" in plan.warnings[0]
+    assert "WARNING" in fixpack.describe(plan)
+
+
+def test_plan_windowed_on_unknown_build_warns_without_predicting(fake_game):
+    """Nothing is observed about an unrecognised build; say only that."""
+    plan = fixpack.build_plan(fake_game, windowed=True)
+    assert plan.game_version == "unknown"
+    assert plan.ok
+    assert len(plan.warnings) == 1
+    assert "not a build this tool recognises" in plan.warnings[0]
+    assert "unproven" in plan.warnings[0]
+    assert "ignores" not in plan.warnings[0]
+
+
+@pytest.mark.parametrize("fixture", ["fake_game", "fake_game_1_0", "fake_game_1_2"])
+def test_fullscreen_plans_never_warn(fixture, request):
+    plan = fixpack.build_plan(request.getfixturevalue(fixture), 800, 600)
+    assert plan.warnings == []
+    assert "WARNING" not in fixpack.describe(plan)
 
 
 def test_apply_creates_config(fake_game):
@@ -61,7 +154,7 @@ def test_apply_refuses_when_no_adapter_fits(fake_game):
         fixpack.apply(plan)
 
 
-def test_apply_refuses_when_not_writable(fake_game, monkeypatch):
+def test_apply_refuses_when_not_writable(fake_game):
     plan = fixpack.build_plan(fake_game)
     object.__setattr__(plan, "writable", False)
     with pytest.raises(fixpack.FixError, match="not writable"):
@@ -77,6 +170,14 @@ def test_describe_mentions_the_grant_command_when_unwritable(fake_game):
 
 
 def test_describe_lists_the_config_lines(fake_game):
-    text = fixpack.describe(fake_game and fixpack.build_plan(fake_game))
+    text = fixpack.describe(fixpack.build_plan(fake_game))
     assert "SysSetup device 1" in text
     assert "Adapter        : 1" in text
+    assert "Game version   : unknown" in text
+    assert "Resolution     : 640x480 fullscreen" in text
+
+
+def test_describe_shows_windowed_resolution(fake_game_1_2):
+    text = fixpack.describe(fixpack.build_plan(fake_game_1_2, 800, 600, windowed=True))
+    assert "Resolution     : 800x600 windowed" in text
+    assert "Game version   : 1.2" in text

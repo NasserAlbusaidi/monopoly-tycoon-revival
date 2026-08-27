@@ -58,6 +58,9 @@ py -m pip install .
 py -m mtrevival adapters     # list adapters, show which support 640x480
 py -m mtrevival check        # show what would be written, change nothing
 py -m mtrevival fix          # write config.cfg, backing up any existing one
+
+py -m mtrevival fix --resolution 1920x1080             # any mode the adapter lists
+py -m mtrevival fix --resolution 1280x720 --windowed   # windowed needs patch 1.2
 ```
 
 Example on a machine with a portrait primary display:
@@ -142,8 +145,10 @@ redistributable on the CD is not a safe answer on a modern system.
   `mc.exe`, three Lua scripts and the string tables, and leaves `config.cfg`
   alone. Both crashes above are still present in the 1.2 executable. Details
   in [`docs/patch-1.2.md`](docs/patch-1.2.md).
-- The game runs at 640×480. Higher resolutions are enumerated by the engine and
-  are not yet explored.
+- Resolution is free. `SysSetup width` / `height` accept any mode the chosen
+  adapter enumerates; 1920×1080 exclusive fullscreen and 1280×720 windowed
+  (`SysSetup Window 1`, patch 1.2 only) were verified running with a sane UI.
+  The 1.0 key `windowed` is ignored; 1.2 renamed it.
 - GameSpy multiplayer is dead and out of scope.
 
 ## Modding
