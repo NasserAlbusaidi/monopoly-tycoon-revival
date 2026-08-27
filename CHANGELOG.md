@@ -7,6 +7,28 @@ machine (Windows 11, English CD, patch 1.0 and 1.2) unless stated otherwise.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-27
+
+For players, not just for people with a terminal.
+
+### Added
+- **`MonopolyTycoonFix.exe`** on every release: one file, double-click, no
+  Python needed. Built by CI with PyInstaller from this source; unsigned, so
+  Windows SmartScreen asks once.
+- **Guided fix** when run with no arguments (`mtrevival`, `mtrevival wizard`,
+  or the exe): finds the install, fixes the folder permission itself through
+  a single Windows elevation prompt instead of printing an `icacls` command,
+  offers landscape resolutions (1920x1080 recommended, your desktop mode as
+  unverified, 640x480 original), asks about music, applies.
+- `--version`.
+- README that starts with "Own the CD? Three steps." and says plainly where
+  the game can and cannot be had.
+
+### Fixed
+- The wizard never offers a portrait display's own mode, even when that
+  adapter lists it; the game's UI is landscape and that display is the
+  original crash.
+
 ## [0.3.1] - 2026-08-27
 
 First release on PyPI: `pip install mtrevival` or `pipx run mtrevival`.
@@ -67,7 +89,8 @@ No change to what the tool does on the game.
 - `docs/phase-0-findings.md`: both startup crashes traced to unchecked
   nulls in `mc.exe`.
 
-[Unreleased]: https://github.com/NasserAlbusaidi/monopoly-tycoon-revival/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/NasserAlbusaidi/monopoly-tycoon-revival/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/NasserAlbusaidi/monopoly-tycoon-revival/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/NasserAlbusaidi/monopoly-tycoon-revival/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/NasserAlbusaidi/monopoly-tycoon-revival/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/NasserAlbusaidi/monopoly-tycoon-revival/compare/v0.1.0...v0.2.0

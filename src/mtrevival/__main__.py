@@ -12,6 +12,14 @@ from . import fixpack
 _RESOLUTION = re.compile(r"^(\d{3,4})x(\d{3,4})$")
 
 
+def _version() -> str:
+    try:
+        from importlib.metadata import version
+        return version("mtrevival")
+    except Exception:  # not installed as a distribution (e.g. inside the exe)
+        return "unknown"
+
+
 def resolution(text: str) -> tuple[int, int]:
     """argparse type for WIDTHxHEIGHT."""
     m = _RESOLUTION.match(text.strip().lower())
@@ -22,9 +30,19 @@ def resolution(text: str) -> tuple[int, int]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    if not argv:
+        # Double-clicked, or run bare: the guided path.
+        from . import wizard
+        return wizard.main_interactive()
+
     parser = argparse.ArgumentParser(
         prog="mtrevival",
-        description="Make Monopoly Tycoon (2001) run on modern Windows.")
+        description="Make Monopoly Tycoon (2001) run on modern Windows. "
+                    "Run with no arguments for a guided fix.")
+    parser.add_argument("--version", action="version",
+                        version="mtrevival %s" % _version())
     sub = parser.add_subparsers(dest="command", required=True)
 
     def common(p: argparse.ArgumentParser) -> None:
@@ -46,8 +64,13 @@ def main(argv: list[str] | None = None) -> int:
                        help="restore the soundtrack: install the wmsource-shim "
                             "for this user and write music 0")
     common(sub.add_parser("adapters", help="list adapters and whether they fit"))
+    guided = sub.add_parser("wizard", help="the guided fix (same as no arguments)")
+    guided.add_argument("--game-dir", type=Path, default=None)
 
     args = parser.parse_args(argv)
+    if args.command == "wizard":
+        from . import wizard
+        return wizard.run(game_dir=args.game_dir)
     width, height = args.resolution
     windowed = getattr(args, "windowed", False)
     with_music = getattr(args, "music", False)
