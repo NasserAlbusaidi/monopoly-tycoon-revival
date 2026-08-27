@@ -28,3 +28,9 @@ scratch/
 *.egg-info/
 build/
 dist/
+
+# built by tools/wmsource-shim/build.ps1 and by CI; wheels and releases carry it
+src/mtrevival/bin/
+
+# synthesised sine tones for the shim harness — not game content
+!tools/wmsource-shim/harness/tone-*.wma

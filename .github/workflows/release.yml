@@ -1,0 +1,94 @@
+name: Release
+
+# Tag vX.Y.Z on main -> build the shim and the wheel, test, publish to PyPI
+# (Trusted Publishing, environment "pypi"), and create the GitHub release
+# with the DLL, wheel and sdist attached. Notes come from CHANGELOG.md.
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Tag must match pyproject version
+        shell: pwsh
+        run: |
+          $v = python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])"
+          if ("v$v" -ne '${{ github.ref_name }}') { throw "tag ${{ github.ref_name }} does not match pyproject version $v" }
+
+      - name: Build wmsource-shim.dll (MSVC, x86)
+        run: pwsh tools/wmsource-shim/build.ps1
+
+      - run: python -m pip install --upgrade pip build pytest
+      - run: python -m pip install -e .
+      - run: python -m pytest -q
+      - run: python -m build
+
+      - name: Wheel carries the shim
+        shell: pwsh
+        run: |
+          $wheel = (Get-ChildItem dist/*.whl).FullName
+          python -c "import sys, zipfile; names = zipfile.ZipFile(sys.argv[1]).namelist(); assert 'mtrevival/bin/wmsource-shim.dll' in names, names; print('ok:', sys.argv[1])" $wheel
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wmsource-shim
+          path: src/mtrevival/bin/wmsource-shim.dll
+
+  github-release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: wmsource-shim
+          path: shim
+
+      - name: Release notes from CHANGELOG.md
+        run: |
+          python - "${{ github.ref_name }}" <<'EOF'
+          import re, sys
+          version = sys.argv[1].lstrip("v")
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+          m = re.search(r"^## \[%s\][^\n]*\n(.*?)(?=^## \[|\Z)" % re.escape(version), text, re.S | re.M)
+          if not m:
+              sys.exit("CHANGELOG.md has no section for %s" % version)
+          open("notes.md", "w", encoding="utf-8").write(m.group(1).strip() + "\n")
+          EOF
+          cat notes.md
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" dist/* shim/wmsource-shim.dll --title "${{ github.ref_name }}" --notes-file notes.md
+
+  pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1

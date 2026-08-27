@@ -2,8 +2,29 @@
 name = "mtrevival"
 version = "0.3.0"
 description = "Make Monopoly Tycoon (2001) run on modern Windows"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Nasser Albusaidi"}]
 requires-python = ">=3.12"
 dependencies = []
+keywords = ["monopoly-tycoon", "game-preservation", "windows", "directshow"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Games/Entertainment",
+]
+
+[project.urls]
+Homepage = "https://github.com/NasserAlbusaidi/monopoly-tycoon-revival"
+Issues = "https://github.com/NasserAlbusaidi/monopoly-tycoon-revival/issues"
+Changelog = "https://github.com/NasserAlbusaidi/monopoly-tycoon-revival/blob/main/CHANGELOG.md"
+
+[project.scripts]
+mtrevival = "mtrevival.__main__:main"
 
 [build-system]
 requires = ["setuptools>=68"]

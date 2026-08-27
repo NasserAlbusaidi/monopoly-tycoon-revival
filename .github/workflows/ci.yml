@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: pytest (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m pytest -q
+
+  shim:
+    name: shim build + end-to-end harness
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e . pytest
+
+      - name: Build wmsource-shim.dll and the harness (MSVC, x86)
+        run: |
+          pwsh tools/wmsource-shim/build.ps1
+          pwsh tools/wmsource-shim/build-harness.ps1
+
+      - name: Windows Media preflight (WM ASF Reader, 32-bit view)
+        shell: pwsh
+        run: |
+          $ok = python -c "from mtrevival import music; print(music.reader_available())"
+          if ($ok -ne 'True') {
+            Write-Host 'WM ASF Reader not registered; trying the Server-Media-Foundation feature'
+            try { Install-WindowsFeature Server-Media-Foundation | Out-String | Write-Host } catch { Write-Host $_ }
+            $ok = python -c "from mtrevival import music; print(music.reader_available())"
+          }
+          if ($ok -ne 'True') { throw 'WM ASF Reader is not available on this runner; the harness cannot run' }
+
+      - name: Register the built shim for the runner account
+        run: python -c "from pathlib import Path; from mtrevival import music; music.register(Path('src/mtrevival/bin/wmsource-shim.dll').resolve()); print(music.registered_server())"
+
+      - name: Replay the game's music calls through the shim
+        env:
+          WMSOURCE_SHIM_LOG: ${{ github.workspace }}\shim.log
+        run: src\mtrevival\bin\harness.exe --null-renderer tools\wmsource-shim\harness\tone-a.wma tools\wmsource-shim\harness\tone-b.wma
+
+      - name: Shim trace
+        if: always()
+        shell: pwsh
+        run: if (Test-Path shim.log) { Get-Content shim.log } else { 'no trace written' }
+
+      - name: pytest with the built DLL present
+        run: python -m pytest -q
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wmsource-shim
+          path: src/mtrevival/bin/wmsource-shim.dll

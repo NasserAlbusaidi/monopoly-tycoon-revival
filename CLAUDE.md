@@ -35,12 +35,20 @@ real registry keys under `HKCU\Software\mtrevival-test\<uuid>` and deletes
 them; the fixpack and CLI tests monkeypatch `music.*` so they never read the
 real registry or need the built DLL.
 
-`tools/wmsource-shim/` is the C++ COM shim that restores music (see below);
-its built DLL is package data and is committed. `tools/probe-wma-source.cpp`
-is the standalone DirectShow probe used to diagnose it. `tools/monitor-run.ps1`
-launches an exe and logs every child process command line and every dialog's
-text (run it elevated to see elevated windows). None of these are in the test
-suite.
+`tools/wmsource-shim/` is the C++ COM shim that restores music (see below).
+Its built DLL lands in `src/mtrevival/bin/` (gitignored, package data): CI
+builds it on every push and wheels/releases carry it; locally run
+`build.ps1`. `harness.cpp` replays the game's music calls through whatever
+answers the legacy CLSID and is what CI runs against the fresh build (with
+synthesised tone fixtures). `tools/probe-wma-source.cpp` is the standalone
+DirectShow probe used to diagnose it. `tools/monitor-run.ps1` launches an
+exe and logs every child process command line and every dialog's text (run
+it elevated to see elevated windows). None of these are in the pytest suite.
+
+Workflow: `main` is protected — PR with green CI, squash-merge, Conventional
+Commits titles. Release = bump `pyproject.toml` + `CHANGELOG.md` in a PR,
+then tag `vX.Y.Z` on `main`; the Release workflow publishes to PyPI and
+GitHub. `CONTRIBUTING.md` is the human-facing version of this.
 
 ## Architecture
 
