@@ -1,0 +1,17 @@
+[project]
+name = "mtrevival"
+version = "0.1.0"
+description = "Make Monopoly Tycoon (2001) run on modern Windows"
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]

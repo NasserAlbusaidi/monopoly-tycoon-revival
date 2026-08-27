@@ -23,3 +23,8 @@ __pycache__/
 
 # Spikes and throwaway scripts
 scratch/
+
+# build output
+*.egg-info/
+build/
+dist/
