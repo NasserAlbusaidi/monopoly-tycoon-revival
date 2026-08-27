@@ -1,0 +1,22 @@
+# NEVER commit game content. Users bring their own disc.
+*.iso
+*.cab
+*.hdr
+*.lua
+*.gtd
+*.tt
+*.tm
+*.wma
+*.wav
+*.tga
+*.bmp
+*.dat
+*.bin
+extracted/
+game/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
