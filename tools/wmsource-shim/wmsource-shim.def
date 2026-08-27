@@ -1,0 +1,4 @@
+LIBRARY wmsource-shim
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE

@@ -11,7 +11,9 @@ null.
 
 2. Opening ``gamedata\\sound\\music\\music_intro.wma`` fails because the Windows
    Media DirectShow source filter no longer ships with Windows.
-   Fixed by ``SysSetup music 1``, which suppresses that path.
+   Avoided by ``SysSetup music 1``, which suppresses that path; fixed by
+   ``--music``, which installs a stand-in for the missing filter and writes
+   ``music 0`` (see ``music.py``).
 
 A third problem must be solved before either fix can persist: the game cannot
 write ``config.cfg`` inside Program Files under a standard user account.
@@ -29,7 +31,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from . import d3denum, gameconfig
+from . import d3denum, gameconfig, music
 
 DEFAULT_INSTALL = Path(r"C:\Program Files (x86)\Infogrames\Monopoly Tycoon")
 DEFAULT_WIDTH = gameconfig.DEFAULT_WIDTH
@@ -65,10 +67,34 @@ class Plan:
     config_path: Path
     config_exists: bool
     rendered: str
+    music: bool = False
+    shim_source: Path | None = None
+    shim_target: Path | None = None
+    reader_available: bool = True
+    run_as_admin: bool = False
+    tool_elevated: bool = False
 
     @property
     def ok(self) -> bool:
-        return self.writable and self.adapter is not None
+        return (self.writable and self.adapter is not None
+                and not self.music_problems)
+
+    @property
+    def music_problems(self) -> list[str]:
+        """What stops ``--music`` from being applied. Empty when music is off."""
+        if not self.music:
+            return []
+        out = []
+        if self.shim_source is None:
+            out.append("%s is not bundled with this copy of mtrevival. Build it "
+                       "with tools\\wmsource-shim\\build.ps1 (needs the MSVC "
+                       "Build Tools) or install a release that includes it."
+                       % music.SHIM_NAME)
+        if not self.reader_available:
+            out.append("The WM ASF Reader (Windows Media) is not registered for "
+                       "32-bit programs. On Windows N editions install the "
+                       "Media Feature Pack, then retry.")
+        return out
 
     @property
     def warnings(self) -> list[str]:
@@ -87,6 +113,16 @@ class Plan:
             out.append("Windowed mode needs patch %s; game version here is %s, "
                        "which ignores the Window key and runs fullscreen."
                        % (WINDOWED_NEEDS, self.game_version))
+        if self.music and self.run_as_admin:
+            out.append("mc.exe is set to run as administrator. An elevated "
+                       "process ignores per-user COM registrations, so it will "
+                       "not see the music shim and will crash with music 0. "
+                       "Clear that compatibility setting before playing.")
+        if self.music and self.tool_elevated:
+            out.append("This shell is elevated. The shim is registered for the "
+                       "account running this command; the game must run as the "
+                       "same account, not elevated. If you elevated as a "
+                       "different user, rerun this from a normal shell.")
         return out
 
 
@@ -99,7 +135,9 @@ def find_install(explicit: Path | None = None) -> Path:
     """
     if explicit is not None:
         if (explicit / "mc.exe").is_file():
-            return explicit
+            # Absolute: the path is written into the registry and must not
+            # depend on the shell's working directory.
+            return explicit.resolve()
         raise FixError("Could not find mc.exe in %s" % explicit)
 
     for path in (DEFAULT_INSTALL,
@@ -145,7 +183,8 @@ def read_adapters(game_dir: Path) -> tuple[list[d3denum.Adapter], str]:
 
 
 def build_plan(game_dir: Path, width: int = DEFAULT_WIDTH,
-               height: int = DEFAULT_HEIGHT, windowed: bool = False) -> Plan:
+               height: int = DEFAULT_HEIGHT, windowed: bool = False,
+               with_music: bool = False) -> Plan:
     """Work out what to do without changing anything."""
     adapters, source = read_adapters(game_dir)
     index = d3denum.choose_adapter(adapters, width, height, TARGET_BPP)
@@ -161,7 +200,7 @@ def build_plan(game_dir: Path, width: int = DEFAULT_WIDTH,
 
     config_path = game_dir / "config.cfg"
     config = gameconfig.default_config(index if index is not None else 0,
-                                       width, height, windowed)
+                                       width, height, windowed, with_music)
     return Plan(
         game_dir=game_dir,
         game_version=game_version(game_dir),
@@ -175,11 +214,46 @@ def build_plan(game_dir: Path, width: int = DEFAULT_WIDTH,
         config_path=config_path,
         config_exists=config_path.is_file(),
         rendered=config.render(),
+        music=with_music,
+        shim_source=music.bundled_shim() if with_music else None,
+        shim_target=game_dir / music.SHIM_NAME,
+        reader_available=music.reader_available() if with_music else True,
+        run_as_admin=music.run_as_admin_flagged(game_dir / "mc.exe") if with_music else False,
+        tool_elevated=music.is_elevated() if with_music else False,
     )
 
 
+def install_music(plan: Plan) -> None:
+    """Copy the shim into the game directory and register it for this user.
+
+    The copy lives next to mc.exe rather than inside the Python package so
+    the registration survives the package being upgraded, moved, or run from
+    a temporary environment.
+    """
+    if plan.music_problems:
+        raise FixError("\n".join(plan.music_problems))
+    assert plan.shim_source is not None and plan.shim_target is not None
+    try:
+        if not (plan.shim_target.is_file()
+                and plan.shim_target.read_bytes() == plan.shim_source.read_bytes()):
+            shutil.copy2(plan.shim_source, plan.shim_target)
+    except OSError as error:
+        raise FixError("Could not copy %s into the game directory (%s). "
+                       "Close the game if it is running, then retry."
+                       % (music.SHIM_NAME, error))
+    try:
+        music.register(plan.shim_target)
+    except OSError as error:
+        raise FixError("Could not register %s for this user (%s)."
+                       % (music.SHIM_NAME, error))
+
+
 def apply(plan: Plan) -> Path | None:
-    """Write config.cfg, backing up any existing file. Returns the backup path."""
+    """Write config.cfg, backing up any existing file. Returns the backup path.
+
+    With music requested, the shim is installed and registered first, so a
+    failure there leaves the previous config (and its ``music 1``) in place.
+    """
     if not plan.writable:
         raise FixError(
             "The game directory is not writable by this account.\n"
@@ -192,6 +266,8 @@ def apply(plan: Plan) -> Path | None:
             "adapter lists (see `adapters`), rotate a display to landscape, or "
             "attach one that supports the mode."
             % (plan.width, plan.height))
+    if plan.music:
+        install_music(plan)
 
     backup = None
     if plan.config_exists:
@@ -222,6 +298,13 @@ def describe(plan: Plan) -> str:
                         if plan.adapter_description else ""))
     lines.append("config.cfg     : %s"
                  % ("exists, will be backed up" if plan.config_exists else "new"))
+    if plan.music:
+        lines.append("Music          : restore (music 0; %s -> %s, registered "
+                     "per user)" % (music.SHIM_NAME, plan.shim_target))
+    else:
+        lines.append("Music          : off (music 1); add --music to restore it")
+    for problem in plan.music_problems:
+        lines.append("PROBLEM        : %s" % problem)
     for warning in plan.warnings:
         lines.append("WARNING        : %s" % warning)
     lines.append("")

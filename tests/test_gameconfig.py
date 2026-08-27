@@ -34,6 +34,18 @@ VERIFIED_WINDOWED = ("SysSetup api D3D\r\n"
                      "SysSetup music 1\r\n"
                      "SysSetup Window 1\r\n")
 
+# Verified playing music on patch 1.2 with wmsource-shim registered: the
+# shim's trace showed Load(music_intro.wma) and FindPin(Stream 1) succeed
+# inside mc.exe, and the soundtrack was audible.
+VERIFIED_MUSIC = ("SysSetup api D3D\r\n"
+                  "SysSetup device 1\r\n"
+                  "SysSetup width 1280\r\n"
+                  "SysSetup height 720\r\n"
+                  "SysSetup bitdepth 32\r\n"
+                  "SysSetup texbitdepth 16\r\n"
+                  "SysSetup music 0\r\n"
+                  "SysSetup Window 1\r\n")
+
 
 def test_parses_observed_config():
     cfg = gameconfig.parse(OBSERVED)
@@ -97,6 +109,18 @@ def test_default_config_at_1080p_is_the_verified_file_minus_window_0():
 def test_default_config_windowed_matches_verified_file():
     cfg = gameconfig.default_config(1, 1280, 720, windowed=True)
     assert cfg.render() == VERIFIED_WINDOWED
+
+
+def test_default_config_with_music_matches_the_verified_file():
+    cfg = gameconfig.default_config(1, 1280, 720, windowed=True, music=True)
+    assert cfg.render() == VERIFIED_MUSIC
+
+
+def test_music_is_off_unless_asked_for():
+    """music 1 stays the default: music 0 crashes without the shim."""
+    assert gameconfig.default_config(1)["music"] == "1"
+    assert gameconfig.default_config(1, music=False)["music"] == "1"
+    assert gameconfig.default_config(1, music=True)["music"] == "0"
 
 
 def test_window_key_is_absent_unless_asked_for():

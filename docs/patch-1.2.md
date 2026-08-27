@@ -49,8 +49,9 @@ Both unchecked-null bugs are still present, at moved offsets:
 | `CreateDevice` result unchecked | `0x0E78FE` | `0x0E8ECB` |
 | media interface load before null check | `0x0A800D` | `0x0A8BED` |
 
-So `SysSetup device` and `SysSetup music 1` remain required. `config.cfg` is
-still read the same way.
+So `SysSetup device` remains required, and music still needs either
+`SysSetup music 1` (off) or the shim from `music.md`. `config.cfg` is still
+read the same way.
 
 `SysSetup` keys in 1.2 (from the exe's format strings):
 
@@ -88,6 +89,10 @@ Other 1.2 additions, from `patchreadme.wri` and the exe strings:
 
 - **Safe Mode.** Triggered by a file named `MTS.txt` in the game folder, or
   offered after a crash. Overwrites `config.cfg` with lowest settings.
+  Observed: the game itself creates an empty `MTS.txt` the moment it starts
+  and removes it on a clean exit. A process that is killed leaves it behind,
+  and the next launch will then offer Safe Mode. Delete the file before
+  launching again if you do not want that.
 - **Crash handler.** Writes `__crash.sav` and prompts for Safe Mode on the next
   launch.
 - Command-line switches dropped from 1.0: `NOMOVIE`, `WINDOW` (now `SysSetup`

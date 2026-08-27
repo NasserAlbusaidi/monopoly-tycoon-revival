@@ -69,11 +69,15 @@ def parse(text: str) -> Config:
 
 
 def default_config(device: int, width: int = DEFAULT_WIDTH,
-                   height: int = DEFAULT_HEIGHT, windowed: bool = False) -> Config:
+                   height: int = DEFAULT_HEIGHT, windowed: bool = False,
+                   music: bool = False) -> Config:
     """The configuration verified to run the game on Windows 11.
 
     ``music 1`` suppresses the WMA playback path, which crashes because the
     Windows Media DirectShow source filter no longer ships with Windows.
+    ``music 0`` enables it, and is only safe once the wmsource-shim is
+    registered (see ``music.py``); 1280x720 windowed with ``music 0`` was
+    verified playing on patch 1.2.
     ``bitdepth 32`` matches the format the game actually selects; the 16-bit
     path asks for D3DFMT_R5G6B5, which modern drivers do not offer fullscreen.
     ``Window 1`` is only written when asked for: it is a patch 1.2 key, and a
@@ -86,7 +90,7 @@ def default_config(device: int, width: int = DEFAULT_WIDTH,
         "height": str(height),
         "bitdepth": "32",
         "texbitdepth": "16",
-        "music": "1",
+        "music": "0" if music else "1",
     }
     if windowed:
         values["Window"] = "1"

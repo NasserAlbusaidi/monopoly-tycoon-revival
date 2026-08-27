@@ -1,6 +1,6 @@
 [project]
 name = "mtrevival"
-version = "0.2.0"
+version = "0.3.0"
 description = "Make Monopoly Tycoon (2001) run on modern Windows"
 requires-python = ">=3.12"
 dependencies = []
@@ -11,6 +11,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+# The music shim, built from tools/wmsource-shim by build.ps1.
+mtrevival = ["bin/wmsource-shim.dll"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

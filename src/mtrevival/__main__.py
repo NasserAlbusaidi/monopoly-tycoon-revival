@@ -42,11 +42,15 @@ def main(argv: list[str] | None = None) -> int:
         common(p)
         p.add_argument("--windowed", action="store_true",
                        help="run in a window instead of fullscreen (needs patch 1.2)")
+        p.add_argument("--music", action="store_true",
+                       help="restore the soundtrack: install the wmsource-shim "
+                            "for this user and write music 0")
     common(sub.add_parser("adapters", help="list adapters and whether they fit"))
 
     args = parser.parse_args(argv)
     width, height = args.resolution
     windowed = getattr(args, "windowed", False)
+    with_music = getattr(args, "music", False)
 
     try:
         game_dir = fixpack.find_install(args.game_dir)
@@ -66,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
                      "  [portrait]" if adapter.is_portrait else ""))
         return 0
 
-    plan = fixpack.build_plan(game_dir, width, height, windowed)
+    plan = fixpack.build_plan(game_dir, width, height, windowed, with_music)
     print(fixpack.describe(plan))
 
     if args.command == "check":
@@ -78,6 +82,8 @@ def main(argv: list[str] | None = None) -> int:
         print("\nerror: %s" % error, file=sys.stderr)
         return 1
 
+    if plan.music:
+        print("\nInstalled %s and registered it for this user." % plan.shim_target)
     print("\nWrote %s" % plan.config_path)
     if backup:
         print("Backed up previous config to %s" % backup)

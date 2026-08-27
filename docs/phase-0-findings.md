@@ -266,9 +266,11 @@ Both are deliberate and should be reproduced by `fixpack`. Neither is a hack.
 
 ## Open items
 
-- `SysSetup music 1` currently disables the WMA path. Confirm the flag's
+- ~~`SysSetup music 1` currently disables the WMA path. Confirm the flag's
   semantics, and find a way to restore music without the bundled 2001 Windows
-  Media installer.
+  Media installer.~~ Done: `music 1` means off (the game keeps
+  `enabled = (value == 0)`), and `fix --music` restores the soundtrack with a
+  per-user COM shim. See `music.md`.
 - Diff the rewritten `max\archive.DIR` against the CD copy to see what the
   regeneration path changed.
 - ~~Test whether `MTPatch1_2.exe` applies.~~ Done: it applies and the game runs.
