@@ -79,6 +79,7 @@ class Shim : public IBaseFilter, public IFileSourceFilter {
   ~Shim() {
     ref_ = 0x40000000;  // inner releases delegate here; stay off zero
     Retire();
+    if (retired_ != nullptr) retired_->Release();
     InterlockedDecrement(&g_objects);
   }
 
@@ -212,7 +213,14 @@ class Shim : public IBaseFilter, public IFileSourceFilter {
     return hr;
   }
 
-  // Stops the graph, disconnects the current reader's pins, releases it.
+  // Stops the graph, disconnects the current reader's pins, and parks it.
+  //
+  // An aggregated reader's pins count their references on this object, not
+  // on the reader, so releasing the reader while any pin is still held
+  // would leave that holder dangling. After Stop and Disconnect nobody
+  // should hold one, but the cost of being wrong is a crash inside the
+  // game, so the previous reader is kept alive until the next retirement
+  // (one track later) instead of being freed at once.
   void Retire() {
     if (inner_ == nullptr) return;
     if (graph_ != nullptr) {
@@ -225,7 +233,9 @@ class Shim : public IBaseFilter, public IFileSourceFilter {
     }
     DisconnectAll(filter_);
     filter_->JoinFilterGraph(nullptr, nullptr);
-    Drop(inner_, filter_, source_);
+    Drop(nullptr, filter_, source_);
+    if (retired_ != nullptr) retired_->Release();
+    retired_ = inner_;
     inner_ = nullptr;
     filter_ = nullptr;
     source_ = nullptr;
@@ -285,8 +295,12 @@ class Shim : public IBaseFilter, public IFileSourceFilter {
     return hr;
   }
 
+  // No lock: the game calls Load/FindPin and the graph calls the filter
+  // methods on the application thread; the graph's streaming threads only
+  // talk to the reader's pins, which are the reader's own concern.
   LONG ref_ = 1;
   IUnknown* inner_ = nullptr;          // reader's non-delegating unknown (owned)
+  IUnknown* retired_ = nullptr;        // previous reader, see Retire()
   IBaseFilter* filter_ = nullptr;      // reader interfaces, outer refs cancelled
   IFileSourceFilter* source_ = nullptr;
   IFilterGraph* graph_ = nullptr;      // not AddRef'd, per DirectShow rules
@@ -354,9 +368,10 @@ STDAPI DllCanUnloadNow() {
   return (g_objects == 0 && g_locks == 0) ? S_OK : S_FALSE;
 }
 
-BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID) {
+// No DisableThreadLibraryCalls: this DLL links the static CRT, which needs
+// the thread attach/detach notifications.
+BOOL WINAPI DllMain(HINSTANCE, DWORD reason, LPVOID) {
   if (reason == DLL_PROCESS_ATTACH) {
-    DisableThreadLibraryCalls(instance);
     Log("wmsource-shim loaded into pid %lu", (unsigned long)GetCurrentProcessId());
   }
   return TRUE;

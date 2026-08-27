@@ -72,6 +72,7 @@ class Plan:
     shim_target: Path | None = None
     reader_available: bool = True
     run_as_admin: bool = False
+    tool_elevated: bool = False
 
     @property
     def ok(self) -> bool:
@@ -117,6 +118,11 @@ class Plan:
                        "process ignores per-user COM registrations, so it will "
                        "not see the music shim and will crash with music 0. "
                        "Clear that compatibility setting before playing.")
+        if self.music and self.tool_elevated:
+            out.append("This shell is elevated. The shim is registered for the "
+                       "account running this command; the game must run as the "
+                       "same account, not elevated. If you elevated as a "
+                       "different user, rerun this from a normal shell.")
         return out
 
 
@@ -129,7 +135,9 @@ def find_install(explicit: Path | None = None) -> Path:
     """
     if explicit is not None:
         if (explicit / "mc.exe").is_file():
-            return explicit
+            # Absolute: the path is written into the registry and must not
+            # depend on the shell's working directory.
+            return explicit.resolve()
         raise FixError("Could not find mc.exe in %s" % explicit)
 
     for path in (DEFAULT_INSTALL,
@@ -211,6 +219,7 @@ def build_plan(game_dir: Path, width: int = DEFAULT_WIDTH,
         shim_target=game_dir / music.SHIM_NAME,
         reader_available=music.reader_available() if with_music else True,
         run_as_admin=music.run_as_admin_flagged(game_dir / "mc.exe") if with_music else False,
+        tool_elevated=music.is_elevated() if with_music else False,
     )
 
 
@@ -232,7 +241,11 @@ def install_music(plan: Plan) -> None:
         raise FixError("Could not copy %s into the game directory (%s). "
                        "Close the game if it is running, then retry."
                        % (music.SHIM_NAME, error))
-    music.register(plan.shim_target)
+    try:
+        music.register(plan.shim_target)
+    except OSError as error:
+        raise FixError("Could not register %s for this user (%s)."
+                       % (music.SHIM_NAME, error))
 
 
 def apply(plan: Plan) -> Path | None:

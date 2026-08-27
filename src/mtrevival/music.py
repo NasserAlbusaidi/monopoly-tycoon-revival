@@ -49,7 +49,8 @@ def _read_value(hive_name: str, subkey: str, name: str,
     winreg = _winreg()
     if winreg is None:
         return None
-    access = winreg.KEY_READ | (winreg.KEY_WOW64_32KEY if view_32bit else 0)
+    access = winreg.KEY_READ | (winreg.KEY_WOW64_32KEY if view_32bit
+                                else winreg.KEY_WOW64_64KEY)
     try:
         with winreg.OpenKey(getattr(winreg, hive_name), subkey, 0, access) as key:
             value, _ = winreg.QueryValueEx(key, name)
@@ -89,7 +90,13 @@ def register(dll: Path, classes: str = CLASSES) -> None:
 
 
 def unregister(classes: str = CLASSES) -> bool:
-    """Remove the per-user registration. Returns True if there was one."""
+    """Remove the per-user registration. Returns True if there was one.
+
+    Only the two keys ``register`` creates are deleted. If something else
+    added subkeys under the CLSID, that key is left in place rather than
+    torn down blindly, and the InprocServer32 removal alone already unhooks
+    the class.
+    """
     winreg = _winreg()
     if winreg is None:
         return False
@@ -102,6 +109,8 @@ def unregister(classes: str = CLASSES) -> bool:
             removed = True
         except FileNotFoundError:
             pass
+        except PermissionError:  # key has other subkeys; leave it
+            break
     return removed
 
 
@@ -109,10 +118,25 @@ def run_as_admin_flagged(exe: Path) -> bool:
     """True if Windows is set to run ``exe`` elevated (compatibility tab).
 
     Elevated processes do not see per-user COM registrations, so the shim
-    would be invisible to the game and music would crash it again.
+    would be invisible to the game and music would crash it again. The
+    Layers key is read in the 64-bit view so a 32-bit Python sees the same
+    machine-wide entry the shell wrote.
     """
     for hive in ("HKEY_CURRENT_USER", "HKEY_LOCAL_MACHINE"):
         value = _read_value(hive, LAYERS, str(exe), view_32bit=False)
         if value and "RUNASADMIN" in value.upper():
             return True
     return False
+
+
+def is_elevated() -> bool:
+    """True if this process runs with an elevated token.
+
+    Registration goes into the running account's HKCU. From a shell elevated
+    as a different account it would land in the wrong hive.
+    """
+    try:
+        import ctypes
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except (AttributeError, OSError):
+        return False

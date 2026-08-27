@@ -49,8 +49,9 @@ Both unchecked-null bugs are still present, at moved offsets:
 | `CreateDevice` result unchecked | `0x0E78FE` | `0x0E8ECB` |
 | media interface load before null check | `0x0A800D` | `0x0A8BED` |
 
-So `SysSetup device` and `SysSetup music 1` remain required. `config.cfg` is
-still read the same way.
+So `SysSetup device` remains required, and music still needs either
+`SysSetup music 1` (off) or the shim from `music.md`. `config.cfg` is still
+read the same way.
 
 `SysSetup` keys in 1.2 (from the exe's format strings):
 

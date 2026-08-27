@@ -19,7 +19,7 @@ Python ≥3.12, stdlib only, no runtime deps. A venv exists at `.venv/`.
 
 ```powershell
 .venv\Scripts\python -m pip install -e .        # editable install
-.venv\Scripts\python -m pytest -q               # all tests (~60, <1 s)
+.venv\Scripts\python -m pytest -q               # all tests (~90, <1 s)
 .venv\Scripts\python -m pytest tests/test_fixpack.py -k landscape   # one test
 .venv\Scripts\python -m mtrevival adapters      # list adapters + 640x480 fit
 .venv\Scripts\python -m mtrevival check         # dry run against real install
@@ -32,7 +32,8 @@ pwsh tools\wmsource-shim\build.ps1               # builds src\mtrevival\bin\wmso
 `mtrevival` directly and `test_fixpack.py` imports the `REAL` fixture from
 `test_d3denum.py`. No lint/format tool is configured. `test_music.py` writes
 real registry keys under `HKCU\Software\mtrevival-test\<uuid>` and deletes
-them; everything else that touches the registry or the DLL is monkeypatched.
+them; the fixpack and CLI tests monkeypatch `music.*` so they never read the
+real registry or need the built DLL.
 
 `tools/wmsource-shim/` is the C++ COM shim that restores music (see below);
 its built DLL is package data and is committed. `tools/probe-wma-source.cpp`
@@ -122,11 +123,16 @@ is exercised against the actual crash scenario.
 ## Roadmap
 
 `docs/superpowers/specs/2026-08-27-monopoly-tycoon-revival-design.md` defines
-Phases 0–4. Phase 0 (boot) is complete; Phase 1 `fixpack` is released as
-v0.1.0. Note the spec's Phase 1 also calls for direct cab extraction and patch
-application — **not implemented**; the current fixpack only writes `config.cfg`
-against an existing install. Phase 2 (`mtdata` Lua schema + demo mod) and
-Phase 3 (`mtarc` archive reader) are unstarted.
+Phases 0–4. Phase 0 (boot) is complete; Phase 1 `fixpack` is released
+(v0.1.0 config, v0.2.0 resolution/windowed, v0.3.0 music). Note the spec's
+Phase 1 also calls for direct cab extraction and patch application — **not
+implemented**; the current fixpack only writes `config.cfg` (and the music
+shim) against an existing install. Phase 2 (`mtdata` Lua schema + demo mod)
+and Phase 3 (`mtarc` archive reader) are unstarted. The GitHub issue tracker
+(31 issues, milestones v0.2.0–v1.0.0) plans a managed-instance /
+compatibility-profile / patch-engine architecture that the shipped fixpack
+does not follow; work is tracked there by issue and PR, and the drift is a
+known open decision.
 
 ## Debugging lessons from Phase 0
 

@@ -143,10 +143,11 @@ an adapter whose modes are all taller than they are wide — that is the culprit
 
 The filename recovered from the dump is
 `gamedata\sound\music\music_intro.wma`. The game builds a DirectShow graph to
-play its WMA soundtrack, but the Windows Media DirectShow source filter
-(`dxmasf.dll`) no longer ships with Windows. `quartz.dll` and `devenum.dll` load;
-the Windows Media source does not. The interface comes back null and is used
-anyway.
+play its WMA soundtrack and asks for the 2001 Windows Media DirectShow source
+filter by CLSID. Windows 11 keeps only a 5 KB stub of `dxmasf.dll` and no
+longer registers the class, so `CoCreateInstance` fails. `quartz.dll` and
+`devenum.dll` load; the Windows Media source does not. The interface comes
+back null and is used anyway.
 
 **Fix:** `SysSetup music 1` suppresses that path, and the game runs without
 its music. `fix --music` restores it: the filter the game asks for,

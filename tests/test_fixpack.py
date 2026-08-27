@@ -20,11 +20,19 @@ def music_env(tmp_path, monkeypatch):
     shim = tmp_path / "package-bin" / music.SHIM_NAME
     shim.parent.mkdir()
     shim.write_bytes(FAKE_SHIM)
-    env = {"shim": shim, "reader": True, "admin": False, "registered": []}
+    env = {"shim": shim, "reader": True, "admin": False, "elevated": False,
+           "registered": [], "register_error": None}
+
+    def register(dll, classes=None):
+        if env["register_error"]:
+            raise env["register_error"]
+        env["registered"].append(dll)
+
     monkeypatch.setattr(music, "bundled_shim", lambda: env["shim"])
     monkeypatch.setattr(music, "reader_available", lambda: env["reader"])
     monkeypatch.setattr(music, "run_as_admin_flagged", lambda exe: env["admin"])
-    monkeypatch.setattr(music, "register", lambda dll, classes=None: env["registered"].append(dll))
+    monkeypatch.setattr(music, "is_elevated", lambda: env["elevated"])
+    monkeypatch.setattr(music, "register", register)
     return env
 
 
@@ -212,6 +220,32 @@ def test_music_warns_when_the_game_runs_elevated(fake_game, music_env):
     assert any("run as administrator" in w for w in plan.warnings)
     assert "WARNING" in fixpack.describe(plan)
     assert fixpack.build_plan(fake_game).warnings == []
+
+
+def test_music_warns_when_the_tool_itself_is_elevated(fake_game, music_env):
+    music_env["elevated"] = True
+    plan = fixpack.build_plan(fake_game, with_music=True)
+    assert plan.ok
+    assert any("shell is elevated" in w for w in plan.warnings)
+    assert fixpack.build_plan(fake_game).warnings == []
+
+
+def test_registration_failure_is_a_fix_error_not_a_traceback(fake_game, music_env):
+    music_env["register_error"] = PermissionError("access denied")
+    with pytest.raises(fixpack.FixError, match="Could not register"):
+        fixpack.apply(fixpack.build_plan(fake_game, with_music=True))
+    assert not (fake_game / "config.cfg").exists()
+
+
+def test_relative_game_dir_registers_an_absolute_path(fake_game, music_env, monkeypatch):
+    """The registry path must not depend on where the shell happened to be."""
+    monkeypatch.chdir(fake_game.parent)
+    relative = fixpack.find_install(pytest.importorskip("pathlib").Path(fake_game.name))
+    assert relative.is_absolute()
+    plan = fixpack.build_plan(relative, with_music=True)
+    fixpack.apply(plan)
+    assert music_env["registered"] == [fake_game / music.SHIM_NAME]
+    assert music_env["registered"][0].is_absolute()
 
 
 def test_music_problems_leave_config_untouched_when_it_exists(fake_game, music_env):

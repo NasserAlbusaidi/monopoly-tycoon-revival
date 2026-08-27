@@ -126,12 +126,18 @@ rebuilds it with the MSVC Build Tools). `fix --music` warns if `mc.exe` has
 the "run as administrator" compatibility flag: an elevated process ignores
 per-user COM classes, would not see the shim, and would crash with `music 0`.
 
-To remove it:
+To remove it, unhook the class, write `music 1` again with whatever
+resolution flags you use, and delete the copied DLL:
 
 ```
 py -c "from mtrevival import music; print(music.unregister())"
-py -m mtrevival fix            # writes music 1 again
+py -m mtrevival fix --resolution 1920x1080      # your usual flags, minus --music
+del "C:\Program Files (x86)\Infogrames\Monopoly Tycoon\wmsource-shim.dll"
 ```
+
+`fix --music` also warns when the shell itself is elevated: the registration
+lands in the HKCU of the account running the command, and the game must run
+as that same account, unelevated.
 
 ## Verification record
 

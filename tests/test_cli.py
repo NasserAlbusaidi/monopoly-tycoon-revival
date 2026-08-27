@@ -79,28 +79,33 @@ def test_check_without_music_says_how_to_get_it(fake_game, capsys):
     assert "SysSetup music 1" in out
 
 
-def test_fix_with_music_installs_and_registers(fake_game, tmp_path, monkeypatch, capsys):
+def _isolate_music(monkeypatch, shim, registered):
     from mtrevival import music
-    shim = tmp_path / music.SHIM_NAME
-    shim.write_bytes(b"MZ shim")
-    registered = []
     monkeypatch.setattr(music, "bundled_shim", lambda: shim)
     monkeypatch.setattr(music, "reader_available", lambda: True)
     monkeypatch.setattr(music, "run_as_admin_flagged", lambda exe: False)
+    monkeypatch.setattr(music, "is_elevated", lambda: False)
     monkeypatch.setattr(music, "register", lambda dll, classes=None: registered.append(dll))
+
+
+def test_fix_with_music_installs_and_registers(fake_game, tmp_path, monkeypatch, capsys):
+    from mtrevival import music
+    shim = tmp_path / "package" / music.SHIM_NAME   # not the install path: copy must happen
+    shim.parent.mkdir()
+    shim.write_bytes(b"MZ shim")
+    registered = []
+    _isolate_music(monkeypatch, shim, registered)
     rc = cli.main(["fix", "--game-dir", str(fake_game), "--music"])
     out = capsys.readouterr().out
     assert rc == 0, out
     assert registered == [fake_game / music.SHIM_NAME]
+    assert (fake_game / music.SHIM_NAME).read_bytes() == b"MZ shim"
     assert "registered it for this user" in out
     assert b"SysSetup music 0\r\n" in (fake_game / "config.cfg").read_bytes()
 
 
 def test_check_with_music_exits_1_when_it_cannot_be_applied(fake_game, monkeypatch, capsys):
-    from mtrevival import music
-    monkeypatch.setattr(music, "bundled_shim", lambda: None)
-    monkeypatch.setattr(music, "reader_available", lambda: True)
-    monkeypatch.setattr(music, "run_as_admin_flagged", lambda exe: False)
+    _isolate_music(monkeypatch, None, [])
     assert cli.main(["check", "--game-dir", str(fake_game), "--music"]) == 1
     assert "PROBLEM" in capsys.readouterr().out
 
