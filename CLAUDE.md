@@ -31,7 +31,9 @@ Python ≥3.12, stdlib only, no runtime deps. A venv exists at `.venv/`.
 `test_d3denum.py`. No lint/format tool is configured.
 
 `tools/probe-wma-source.cpp` is a standalone MSVC diagnostic (DirectShow filter
-probe); it is not part of the package or the test suite.
+probe). `tools/monitor-run.ps1` launches an exe and logs every child process
+command line and every dialog's text (run it elevated to see elevated windows).
+Neither is part of the package or the test suite.
 
 ## Architecture
 
@@ -72,8 +74,16 @@ is exercised against the actual crash scenario.
 - Program Files is not writable for a standard user, so the game silently fails
   to persist config/profiles; `fixpack` detects this and prints the `icacls`
   command rather than elevating itself.
-- Verified on one machine only (Win11 26200, RTX 4080, game 1.0, patch 1.2 not
-  applied). Say "verified on one machine", never "works".
+- Verified on one machine only (Win11 26200, RTX 4080, English CD, game 1.0
+  and 1.2). Say "verified on one machine", never "works".
+- Patch 1.2 is applied on the dev machine and works with the same `config.cfg`.
+  It renames `windowed` → `Window` and adds `Fog`, `Halos`, `Multitexture`,
+  `No3d`, `NoMovie`, plus Safe Mode (`MTS.txt`) and a crash handler
+  (`__crash.sav`). Both null-deref bugs persist at `0xE8ECB` / `0xA8BED`.
+  Run the patcher elevated. See `docs/patch-1.2.md`. Pre-patch 1.0 backup:
+  `D:\personal\reviving-games\install-backup-prepatch-20260827`.
+- The game's registry keys live under `HKLM\SOFTWARE\WOW6432Node\Infogrames*`
+  and the Uninstall key `{B975F4A1-63B6-11D4-BFEC-005004AF2D32}`.
 - Gameplay, scenarios, and even savegames are plain-text Lua under the install
   dir — the basis for Phases 2–3. Mods must ship as diffs/overlays against the
   user's files, never as copies of game Lua.

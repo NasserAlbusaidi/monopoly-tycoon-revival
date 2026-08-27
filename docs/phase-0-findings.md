@@ -81,9 +81,11 @@ The stock InstallShield installer **works on Windows 11**. No workaround needed.
 **Patch 1.2 is not applied.** `mc.exe` is dated Oct 10 2001 at 1,495,082 bytes,
 byte-identical in size to the CD copy. The patch is dated Dec 18 2001.
 
-**No registry entries exist** under `HKLM\SOFTWARE\WOW6432Node\Infogrames` or
-`HKCU\Software\Infogrames`. If `MTPatch1_2.exe` locates the install through the
-registry, it may refuse to run. Not yet tested.
+~~No registry entries exist.~~ **Correction (later the same day):** the installer
+did create `HKLM\SOFTWARE\WOW6432Node\Infogrames\Monopoly Tycoon\1.00.000`,
+`...\Infogrames Interactive\MONOPOLY TYCOON` (`PATH`, `LANGUAGE`, `DEFAULTBOARD`)
+and the Uninstall key. The original query was malformed. Patch 1.2 applies
+without prompting — see `patch-1.2.md`.
 
 ## Gate question 1: are the .lua files loose on disk?
 
@@ -269,7 +271,8 @@ Both are deliberate and should be reproduced by `fixpack`. Neither is a hack.
   Media installer.
 - Diff the rewritten `max\archive.DIR` against the CD copy to see what the
   regeneration path changed.
-- Test whether `MTPatch1_2.exe` applies without registry entries.
+- ~~Test whether `MTPatch1_2.exe` applies.~~ Done: it applies and the game runs.
+  See `patch-1.2.md`.
 - Examine `RoadNodes.bin` and `route_smalltable.bin` against the map scripts.
 - Decide how `fixpack` picks the adapter by capability rather than index.
 

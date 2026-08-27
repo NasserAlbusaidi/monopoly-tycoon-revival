@@ -135,8 +135,13 @@ redistributable on the CD is not a safe answer on a modern system.
 
 ## Compatibility notes
 
-- Tested on Windows 11 Pro (build 26200), NVIDIA RTX 4080, game version 1.0
-  from the English CD, patch 1.2 **not** applied. Verified on one machine only.
+- Tested on Windows 11 Pro (build 26200), NVIDIA RTX 4080, English CD.
+  Verified with game version 1.0 and again after applying the official patch
+  1.2 — the same `config.cfg` works for both. Verified on one machine only.
+- Patch 1.2 applies cleanly on Windows 11 when run **elevated**. It changes
+  `mc.exe`, three Lua scripts and the string tables, and leaves `config.cfg`
+  alone. Both crashes above are still present in the 1.2 executable. Details
+  in [`docs/patch-1.2.md`](docs/patch-1.2.md).
 - The game runs at 640×480. Higher resolutions are enumerated by the engine and
   are not yet explored.
 - GameSpy multiplayer is dead and out of scope.
