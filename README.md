@@ -58,15 +58,19 @@ That is the whole fix. Launch `mc.exe`.
 Requires Python 3.12 or newer. Standard library only.
 
 ```
-py -m pip install .
-py -m mtrevival adapters     # list adapters, show which support 640x480
-py -m mtrevival check        # show what would be written, change nothing
-py -m mtrevival fix          # write config.cfg, backing up any existing one
+py -m pip install mtrevival        # or: pipx install mtrevival
+mtrevival adapters                 # list adapters, show which support 640x480
+mtrevival check                    # show what would be written, change nothing
+mtrevival fix                      # write config.cfg, backing up any existing one
 
-py -m mtrevival fix --resolution 1920x1080             # any mode the adapter lists
-py -m mtrevival fix --resolution 1280x720 --windowed   # windowed needs patch 1.2
-py -m mtrevival fix --music                            # restore the soundtrack
+mtrevival fix --resolution 1920x1080             # any mode the adapter lists
+mtrevival fix --resolution 1280x720 --windowed   # windowed needs patch 1.2
+mtrevival fix --music                            # restore the soundtrack
 ```
+
+`py -m mtrevival …` works too. From a git checkout use `py -m pip install .`;
+the music shim then needs building (see `CONTRIBUTING.md`) or the DLL from a
+[release](https://github.com/NasserAlbusaidi/monopoly-tycoon-revival/releases).
 
 Example on a machine with a portrait primary display:
 

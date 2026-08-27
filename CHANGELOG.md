@@ -7,6 +7,11 @@ machine (Windows 11, English CD, patch 1.0 and 1.2) unless stated otherwise.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-27
+
+First release on PyPI: `pip install mtrevival` or `pipx run mtrevival`.
+No change to what the tool does on the game.
+
 ### Changed
 - `wmsource-shim.dll` is no longer committed. CI builds it from
   `tools/wmsource-shim` on every push; wheels and GitHub releases carry it.
@@ -62,7 +67,8 @@ machine (Windows 11, English CD, patch 1.0 and 1.2) unless stated otherwise.
 - `docs/phase-0-findings.md`: both startup crashes traced to unchecked
   nulls in `mc.exe`.
 
-[Unreleased]: https://github.com/NasserAlbusaidi/monopoly-tycoon-revival/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/NasserAlbusaidi/monopoly-tycoon-revival/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/NasserAlbusaidi/monopoly-tycoon-revival/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/NasserAlbusaidi/monopoly-tycoon-revival/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/NasserAlbusaidi/monopoly-tycoon-revival/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/NasserAlbusaidi/monopoly-tycoon-revival/releases/tag/v0.1.0
