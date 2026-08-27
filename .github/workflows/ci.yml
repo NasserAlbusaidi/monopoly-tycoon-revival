@@ -82,7 +82,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install -e . pyinstaller
+      - run: python -m pip install -e . pyinstaller pytest
       - run: pwsh tools/wmsource-shim/build.ps1
       - run: pwsh tools/exe/build-exe.ps1
 
@@ -93,11 +93,13 @@ jobs:
           New-Item -ItemType Directory -Force $fake | Out-Null
           Set-Content -Path (Join-Path $fake 'mc.exe') -Value 'MZ not really' -NoNewline
           python -c "import sys; sys.path.insert(0, 'tests'); from test_d3denum import REAL; open(r'$fake\D3DEnum.txt', 'w').write(REAL)"
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $fake 'D3DEnum.txt'))) { throw 'could not write the D3DEnum.txt fixture' }
           $exe = 'dist\MonopolyTycoonFix.exe'
           & $exe --version
           $out = & $exe check --game-dir $fake --resolution 800x600 --music 2>&1 | Out-String
           Write-Host $out
           if ($LASTEXITCODE -ne 0 -or $out -notmatch 'Music\s+: restore' -or $out -match 'PROBLEM') { throw 'check --music through the exe did not plan the bundled shim' }
+          if ($out -notmatch 'Adapter source : D3DEnum.txt' -or $out -notmatch 'Adapter\s+: 1 ') { throw 'the exe did not read the fixture D3DEnum.txt (portrait primary -> adapter 1)' }
           $out = "`n`n`n" | & $exe wizard --game-dir $fake 2>&1 | Out-String
           Write-Host $out
           if ($LASTEXITCODE -ne 0 -or $out -notmatch 'Done\. Wrote') { throw 'scripted wizard failed' }
