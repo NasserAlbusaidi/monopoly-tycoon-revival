@@ -48,6 +48,12 @@ pwsh tools\wmsource-shim\build-harness.ps1    # -> src\mtrevival\bin\harness.exe
 src\mtrevival\bin\harness.exe tools\wmsource-shim\harness\tone-a.wma tools\wmsource-shim\harness\tone-b.wma
 ```
 
+```powershell
+# the player-facing exe (PyInstaller; needs the shim built first)
+.venv\Scripts\python -m pip install pyinstaller
+pwsh tools\exe\build-exe.ps1                  # -> dist\MonopolyTycoonFix.exe
+```
+
 `harness.exe --null-renderer …` skips the audio device (what CI does).
 `tools\wmsource-shim\harness\make-fixtures.ps1` regenerates the tone files
 with ffmpeg. The built DLL is gitignored; wheels and releases carry it.

@@ -1,6 +1,6 @@
 [project]
 name = "mtrevival"
-version = "0.3.1"
+version = "0.4.0"
 description = "Make Monopoly Tycoon (2001) run on modern Windows"
 readme = "README.md"
 license = {text = "MIT"}

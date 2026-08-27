@@ -26,10 +26,19 @@ jobs:
       - name: Build wmsource-shim.dll (MSVC, x86)
         run: pwsh tools/wmsource-shim/build.ps1
 
-      - run: python -m pip install --upgrade pip build pytest
+      - run: python -m pip install --upgrade pip build pytest pyinstaller
       - run: python -m pip install -e .
       - run: python -m pytest -q
       - run: python -m build
+
+      - name: Build MonopolyTycoonFix.exe
+        run: pwsh tools/exe/build-exe.ps1
+      - name: The exe runs and knows its version
+        shell: pwsh
+        run: |
+          $v = & dist\MonopolyTycoonFix.exe --version
+          Write-Host $v
+          if ($v -notmatch [regex]::Escape('${{ github.ref_name }}'.TrimStart('v'))) { throw "exe reports '$v', expected ${{ github.ref_name }}" }
 
       - name: Wheel carries the shim
         shell: pwsh
@@ -40,11 +49,17 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: dist
-          path: dist/*
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
       - uses: actions/upload-artifact@v4
         with:
           name: wmsource-shim
           path: src/mtrevival/bin/wmsource-shim.dll
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MonopolyTycoonFix
+          path: dist/MonopolyTycoonFix.exe
 
   github-release:
     needs: build
@@ -61,6 +76,10 @@ jobs:
         with:
           name: wmsource-shim
           path: shim
+      - uses: actions/download-artifact@v4
+        with:
+          name: MonopolyTycoonFix
+          path: exe
 
       - name: Release notes from CHANGELOG.md
         run: |
@@ -78,7 +97,7 @@ jobs:
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" dist/* shim/wmsource-shim.dll --title "${{ github.ref_name }}" --notes-file notes.md
+        run: gh release create "${{ github.ref_name }}" exe/MonopolyTycoonFix.exe dist/* shim/wmsource-shim.dll --title "${{ github.ref_name }}" --notes-file notes.md
 
   pypi:
     needs: build

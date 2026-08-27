@@ -76,7 +76,15 @@ GitHub. `CONTRIBUTING.md` is the human-facing version of this.
   Reader preflight, and the run-as-administrator check. Never registers under
   HKLM.
 - `__main__.py` — argparse CLI over `fixpack`. Exit codes: 0 ok, 1 plan not ok /
-  apply failed, 2 install not found.
+  apply failed, 2 install not found. No arguments → `wizard`.
+- `wizard.py` — the guided path a double-click runs (`tools/exe/entry.py` →
+  PyInstaller → `MonopolyTycoonFix.exe`). Same decisions as the CLI, asked
+  as questions; `ask`/`say` are injected so `test_wizard.py` scripts whole
+  sessions. It self-elevates the `icacls` step (`run_elevated`, ShellExecuteEx
+  `runas`) and pauses at the end only when it owns the console
+  (`GetConsoleProcessList == 1`). Resolution choices are landscape-only on
+  purpose: a portrait primary lists its own rotated mode and that is the
+  original crash.
 
 Tests build a fake install in `tmp_path` (`mc.exe` stub + the real `D3DEnum.txt`
 text captured from the portrait-primary machine) so the adapter-selection logic

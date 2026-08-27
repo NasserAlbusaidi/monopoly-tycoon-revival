@@ -1,17 +1,47 @@
 # Monopoly Tycoon Revival
 
-Make **Monopoly Tycoon** (2001, Deep Red Games / Infogrames) install and run on
-Windows 10 and 11.
+Make **Monopoly Tycoon** (2001, Deep Red Games / Infogrames) run on Windows
+10 and 11 — with its music.
 
-The game installs fine on modern Windows and then crashes on startup — usually
-right after the studio logo, sometimes before anything appears. There are two
-separate causes, both fixable in about a minute. No patched executable, no
-compatibility mode. The soundtrack needs one small COM shim registered for
-your user account; everything else is a text file.
+On a modern PC the game installs fine and then crashes right after the
+studio logo. This fixes that in under a minute. Nothing in the game is
+modified: it writes one settings file and, for the music, registers one
+small component for your user account.
 
-**This repository contains no game content.** You need your own copy of the game.
+## Own the CD? Three steps.
+
+1. **Install the game from your CD** as usual (`Setup.exe`). Optional but
+   recommended: apply the publisher's free [patch 1.2](https://archive.org/details/MonopolyTycoon1.2)
+   afterwards (right-click → *Run as administrator*); it adds a sandbox
+   scenario and lets the game run in a window.
+2. **Download `MonopolyTycoonFix.exe`** from the
+   [latest release](https://github.com/NasserAlbusaidi/monopoly-tycoon-revival/releases/latest)
+   and double-click it. It asks two questions (resolution, music) and does
+   the rest. If Windows says *"Windows protected your PC"*, click **More
+   info → Run anyway**: the file is unsigned, not harmful — every release is
+   built by GitHub from the source in this repository, and you can read
+   exactly what it does below.
+3. **Launch the game** from the Start menu or `mc.exe`. Do not use "Run as
+   administrator" — the music component is registered for your user, and an
+   elevated game cannot see it.
+
+Something went wrong? [Open an issue](https://github.com/NasserAlbusaidi/monopoly-tycoon-revival/issues/new/choose)
+and paste what the fix printed.
+
+### Where to get the game
+
+It is not sold anywhere. Hasbro owns the *Monopoly* brand, Atari owns the
+2001 code, and nobody currently holds both, so there is no GOG or Steam
+release (you can [vote for one](https://www.gog.com/dreamlist/game/monopoly-tycoon-2001)).
+Your own CD, or a second-hand copy — they are cheap. **This project does not
+distribute the game and contains no game content.**
 
 ---
+
+## For the technically inclined
+
+Everything below is what the exe does, spelled out, plus the Python package
+it is built from.
 
 ## Quick fix, by hand
 
@@ -59,6 +89,7 @@ Requires Python 3.12 or newer. Standard library only.
 
 ```
 py -m pip install mtrevival        # or: pipx install mtrevival
+mtrevival                          # no arguments: the guided fix (what the exe runs)
 mtrevival adapters                 # list adapters, show which support 640x480
 mtrevival check                    # show what would be written, change nothing
 mtrevival fix                      # write config.cfg, backing up any existing one

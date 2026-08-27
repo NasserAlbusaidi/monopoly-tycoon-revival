@@ -70,6 +70,16 @@ class DEVMODEW(ctypes.Structure):
     ]
 
 
+def current_desktop_mode() -> tuple[int, int] | None:
+    """The primary display's current width and height."""
+    dm = DEVMODEW()
+    dm.dmSize = ctypes.sizeof(DEVMODEW)
+    if not ctypes.windll.user32.EnumDisplaySettingsW(None, ENUM_CURRENT_SETTINGS,
+                                                     ctypes.byref(dm)):
+        return None
+    return int(dm.dmPelsWidth), int(dm.dmPelsHeight)
+
+
 def enumerate_adapters() -> list[Adapter]:
     """Enumerate attached displays and their modes, in desktop device order."""
     user32 = ctypes.windll.user32
