@@ -98,7 +98,7 @@ jobs:
           $out = & $exe check --game-dir $fake --resolution 800x600 --music 2>&1 | Out-String
           Write-Host $out
           if ($LASTEXITCODE -ne 0 -or $out -notmatch 'Music\s+: restore' -or $out -match 'PROBLEM') { throw 'check --music through the exe did not plan the bundled shim' }
-          $out = "`n`nn`n" | & $exe wizard --game-dir $fake 2>&1 | Out-String
+          $out = "`n`n`n" | & $exe wizard --game-dir $fake 2>&1 | Out-String
           Write-Host $out
           if ($LASTEXITCODE -ne 0 -or $out -notmatch 'Done\. Wrote') { throw 'scripted wizard failed' }
           Get-Content (Join-Path $fake 'config.cfg')
